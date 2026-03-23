@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(netstat -ano)",
+      "Bash(findstr :3000)",
+      "Bash(taskkill /F /PID 32464)",
+      "Bash(powershell -Command \"Stop-Process -Id 32464 -Force\")",
+      "Bash(curl -s http://localhost:3000/api/health)",
+      "Bash(findstr \":5173 :3000\")",
+      "Bash(powershell -Command \"Stop-Process -Id 40448,28708 -Force\")",
+      "Bash(findstr LISTENING)"
+    ]
+  }
+}
