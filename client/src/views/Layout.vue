@@ -33,7 +33,9 @@
               :class="{ active: selectedKeys[0] === item.key }"
               @click="$router.push(item.path)"
             >
-              <component :is="item.icon" class="menu-icon" />
+              <div class="menu-icon-wrapper" :style="{ background: selectedKeys[0] === item.key ? 'rgba(255,255,255,0.2)' : `${item.color}15` }">
+                <svg viewBox="0 0 24 24" class="menu-svg" :style="{ color: selectedKeys[0] === item.key ? '#fff' : item.color }" v-html="item.svgPath"></svg>
+              </div>
               <transition name="fade">
                 <span v-show="!collapsed" class="menu-text">{{ item.name }}</span>
               </transition>
@@ -51,7 +53,9 @@
               :class="{ active: selectedKeys[0] === item.key }"
               @click="$router.push(item.path)"
             >
-              <component :is="item.icon" class="menu-icon" />
+              <div class="menu-icon-wrapper" :style="{ background: selectedKeys[0] === item.key ? 'rgba(255,255,255,0.2)' : `${item.color}15` }">
+                <svg viewBox="0 0 24 24" class="menu-svg" :style="{ color: selectedKeys[0] === item.key ? '#fff' : item.color }" v-html="item.svgPath"></svg>
+              </div>
               <transition name="fade">
                 <span v-show="!collapsed" class="menu-text">{{ item.name }}</span>
               </transition>
@@ -128,19 +132,12 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { menuIcons } from '@/assets/icons'
 import {
-  HomeOutlined,
   PictureOutlined,
-  UploadOutlined,
-  HeartOutlined,
-  FolderOutlined,
-  TagsOutlined,
-  DeleteOutlined,
-  FileTextOutlined,
-  TeamOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   LogoutOutlined,
@@ -158,18 +155,18 @@ const selectedKeys = ref(['dashboard'])
 const searchKeyword = ref('')
 
 const mainMenuItems = [
-  { key: 'dashboard', name: '仪表盘', icon: 'HomeOutlined', path: '/' },
-  { key: 'images', name: '图片库', icon: 'PictureOutlined', path: '/images' },
-  { key: 'upload', name: '上传图片', icon: 'UploadOutlined', path: '/upload' },
-  { key: 'favorites', name: '我的收藏', icon: 'HeartOutlined', path: '/favorites' },
+  { key: 'dashboard', name: '仪表盘', path: '/', ...menuIcons.dashboard },
+  { key: 'images', name: '图片库', path: '/images', ...menuIcons.images },
+  { key: 'upload', name: '上传图片', path: '/upload', ...menuIcons.upload },
+  { key: 'favorites', name: '我的收藏', path: '/favorites', ...menuIcons.favorites }
 ]
 
 const manageMenuItems = [
-  { key: 'categories', name: '分类管理', icon: 'FolderOutlined', path: '/categories' },
-  { key: 'tags', name: '标签管理', icon: 'TagsOutlined', path: '/tags' },
-  { key: 'trash', name: '回收站', icon: 'DeleteOutlined', path: '/trash' },
-  { key: 'logs', name: '操作日志', icon: 'FileTextOutlined', path: '/logs' },
-  { key: 'users', name: '用户管理', icon: 'TeamOutlined', path: '/users' },
+  { key: 'categories', name: '分类管理', path: '/categories', ...menuIcons.categories },
+  { key: 'tags', name: '标签管理', path: '/tags', ...menuIcons.tags },
+  { key: 'trash', name: '回收站', path: '/trash', ...menuIcons.trash },
+  { key: 'logs', name: '操作日志', path: '/logs', ...menuIcons.logs },
+  { key: 'users', name: '用户管理', path: '/users', ...menuIcons.users }
 ]
 
 // 监听路由变化
@@ -219,9 +216,19 @@ function handleLogout() {
   top: 0;
   bottom: 0;
   height: 100vh !important;
-  background: linear-gradient(180deg, #1e1b4b 0%, #312e81 100%) !important;
-  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
+  background: linear-gradient(180deg, #1e1b4b 0%, #312e81 50%, #3730a3 100%) !important;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
   z-index: 200;
+}
+
+.sidebar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 1px;
+  height: 100%;
+  background: linear-gradient(180deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
 }
 
 .sidebar :deep(.ant-layout-sider-children) {
@@ -247,8 +254,19 @@ function handleLogout() {
 }
 
 .logo-wrapper {
-  padding: 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 24px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
+}
+
+.logo-wrapper::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 20px;
+  right: 20px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
 }
 
 .logo {
@@ -258,9 +276,9 @@ function handleLogout() {
 }
 
 .logo-icon {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  width: 42px;
+  height: 42px;
+  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -268,6 +286,7 @@ function handleLogout() {
   color: white;
   font-size: 20px;
   flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
 }
 
 .logo-text {
@@ -275,19 +294,20 @@ function handleLogout() {
   font-size: 18px;
   font-weight: 700;
   white-space: nowrap;
+  letter-spacing: 0.5px;
 }
 
 .menu-section {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .menu-title {
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.35);
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-bottom: 12px;
+  letter-spacing: 1.5px;
+  margin-bottom: 10px;
   padding: 0 12px;
 }
 
@@ -301,15 +321,15 @@ function handleLogout() {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
-  color: rgba(255, 255, 255, 0.7);
-  border-radius: 10px;
+  padding: 10px 12px;
+  color: rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .menu-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
   color: white;
 }
 
@@ -319,15 +339,40 @@ function handleLogout() {
   box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
 }
 
-.menu-icon {
-  font-size: 18px;
+.menu-icon-wrapper {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.menu-svg {
+  width: 20px;
+  height: 20px;
+}
+
+.menu-icon {
+  font-size: 20px;
 }
 
 .menu-text {
   font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
+}
+
+/* 折叠状态下只显示图标 */
+.sidebar-collapsed .menu-item {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.sidebar-collapsed .menu-icon-wrapper {
+  margin: 0;
 }
 
 /* 头部样式 */

@@ -4,11 +4,18 @@
     <div class="stats-grid">
       <div class="stat-card" v-for="(stat, index) in stats" :key="index">
         <div class="stat-icon" :style="{ background: stat.gradient }">
-          <component :is="stat.icon" />
+          <svg viewBox="0 0 24 24" class="stat-svg" v-html="stat.svgPath"></svg>
         </div>
         <div class="stat-info">
           <div class="stat-value">{{ stat.value }}</div>
           <div class="stat-label">{{ stat.label }}</div>
+        </div>
+        <div class="stat-decoration">
+          <svg viewBox="0 0 100 100" class="decoration-svg">
+            <circle cx="50" cy="50" r="45" fill="none" :stroke="stat.color" stroke-width="2" opacity="0.2"/>
+            <circle cx="50" cy="50" r="30" fill="none" :stroke="stat.color" stroke-width="2" opacity="0.15"/>
+            <circle cx="50" cy="50" r="15" fill="none" :stroke="stat.color" stroke-width="2" opacity="0.1"/>
+          </svg>
         </div>
       </div>
     </div>
@@ -28,7 +35,7 @@
             v-for="image in recentImages"
             :key="image.id"
             class="image-card"
-            @click="viewImage(image)"
+            @click="showPreview(image)"
           >
             <div class="image-wrapper">
               <img :src="getImageUrl(image)" :alt="image.original_name" />
@@ -51,76 +58,118 @@
           <h3>快捷操作</h3>
         </div>
         <div class="action-grid">
-          <div class="action-card" @click="$router.push('/upload')">
-            <div class="action-icon upload">
-              <CloudUploadOutlined />
+          <div class="action-card" v-for="action in actions" :key="action.key" @click="$router.push(action.path)">
+            <div class="action-icon" :style="{ background: action.gradient }">
+              <svg viewBox="0 0 24 24" class="action-svg" v-html="action.svgPath"></svg>
             </div>
             <div class="action-info">
-              <div class="action-title">上传图片</div>
-              <div class="action-desc">批量上传，AI自动分类</div>
-            </div>
-          </div>
-          <div class="action-card" @click="$router.push('/images')">
-            <div class="action-icon browse">
-              <PictureOutlined />
-            </div>
-            <div class="action-info">
-              <div class="action-title">浏览图片</div>
-              <div class="action-desc">按分类浏览全部图片</div>
-            </div>
-          </div>
-          <div class="action-card" @click="$router.push('/categories')">
-            <div class="action-icon category">
-              <FolderOutlined />
-            </div>
-            <div class="action-info">
-              <div class="action-title">管理分类</div>
-              <div class="action-desc">添加或编辑分类</div>
-            </div>
-          </div>
-          <div class="action-card" @click="$router.push('/tags')">
-            <div class="action-icon tag">
-              <TagsOutlined />
-            </div>
-            <div class="action-info">
-              <div class="action-title">管理标签</div>
-              <div class="action-desc">自定义图片标签</div>
+              <div class="action-title">{{ action.title }}</div>
+              <div class="action-desc">{{ action.desc }}</div>
             </div>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- 图片预览弹窗 -->
+    <a-modal
+      v-model:open="previewVisible"
+      :footer="null"
+      width="80%"
+      centered
+      class="preview-modal"
+    >
+      <div class="preview-content" v-if="previewImage">
+        <img :src="getImageUrl(previewImage, true)" :alt="previewImage.original_name" />
+        <div class="preview-info">
+          <h3>{{ previewImage.original_name }}</h3>
+          <p v-if="previewImage.description">{{ previewImage.description }}</p>
+        </div>
+      </div>
+    </a-modal>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
-import {
-  PictureOutlined,
-  FolderOutlined,
-  TagsOutlined,
-  HeartOutlined,
-  CloudUploadOutlined,
-  RightOutlined,
-  EyeOutlined
-} from '@ant-design/icons-vue'
+import { statIcons, actionIcons } from '@/assets/icons'
+import { RightOutlined, EyeOutlined } from '@ant-design/icons-vue'
 import { imageApi } from '@/api/image'
 import { categoryApi } from '@/api/category'
 import { tagApi } from '@/api/tag'
 
-const router = useRouter()
 const loading = ref(false)
 
 const stats = ref([
-  { label: '图片总数', value: 0, icon: 'PictureOutlined', gradient: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)' },
-  { label: '分类数量', value: 0, icon: 'FolderOutlined', gradient: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)' },
-  { label: '标签数量', value: 0, icon: 'TagsOutlined', gradient: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)' },
-  { label: '收藏数量', value: 0, icon: 'HeartOutlined', gradient: 'linear-gradient(135deg, #ef4444 0%, #f87171 100%)' },
+  {
+    label: '图片总数',
+    value: 0,
+    svgPath: statIcons.images.svgPath,
+    gradient: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+    color: statIcons.images.color
+  },
+  {
+    label: '分类数量',
+    value: 0,
+    svgPath: statIcons.categories.svgPath,
+    gradient: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
+    color: statIcons.categories.color
+  },
+  {
+    label: '标签数量',
+    value: 0,
+    svgPath: statIcons.tags.svgPath,
+    gradient: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)',
+    color: statIcons.tags.color
+  },
+  {
+    label: '收藏数量',
+    value: 0,
+    svgPath: statIcons.favorites.svgPath,
+    gradient: 'linear-gradient(135deg, #ef4444 0%, #f87171 100%)',
+    color: statIcons.favorites.color
+  }
 ])
 
+const actions = [
+  {
+    key: 'upload',
+    title: '上传图片',
+    desc: '批量上传，AI自动分类',
+    path: '/upload',
+    svgPath: actionIcons.upload.svgPath,
+    gradient: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)'
+  },
+  {
+    key: 'browse',
+    title: '浏览图片',
+    desc: '按分类浏览全部图片',
+    path: '/images',
+    svgPath: actionIcons.browse.svgPath,
+    gradient: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)'
+  },
+  {
+    key: 'category',
+    title: '管理分类',
+    desc: '添加或编辑分类',
+    path: '/categories',
+    svgPath: actionIcons.category.svgPath,
+    gradient: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)'
+  },
+  {
+    key: 'tag',
+    title: '管理标签',
+    desc: '自定义图片标签',
+    path: '/tags',
+    svgPath: actionIcons.tag.svgPath,
+    gradient: 'linear-gradient(135deg, #ef4444 0%, #f87171 100%)'
+  }
+]
+
 const recentImages = ref([])
+const previewVisible = ref(false)
+const previewImage = ref(null)
 
 onMounted(async () => {
   await loadData()
@@ -130,7 +179,7 @@ async function loadData() {
   loading.value = true
   try {
     const [imagesRes, categoriesRes, tagsRes] = await Promise.all([
-      imageApi.getList({ page: 1, pageSize: 6 }),
+      imageApi.getList({ page: 1, pageSize: 8 }),
       categoryApi.getTree(),
       tagApi.getList()
     ])
@@ -161,8 +210,8 @@ async function loadData() {
   }
 }
 
-function getImageUrl(image) {
-  if (image.thumbnail_path) {
+function getImageUrl(image, large = false) {
+  if (!large && image.thumbnail_path) {
     return `/uploads/${image.thumbnail_path}`
   }
   return `/uploads/${image.file_path}`
@@ -172,8 +221,9 @@ function formatDate(date) {
   return dayjs(date).format('MM-DD HH:mm')
 }
 
-function viewImage(image) {
-  router.push({ path: '/images', query: { id: image.id } })
+function showPreview(image) {
+  previewImage.value = image
+  previewVisible.value = true
 }
 </script>
 
@@ -198,6 +248,8 @@ function viewImage(image) {
   gap: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
 }
 
 .stat-card:hover {
@@ -205,19 +257,41 @@ function viewImage(image) {
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
 }
 
+.stat-decoration {
+  position: absolute;
+  right: -20px;
+  top: -20px;
+  width: 120px;
+  height: 120px;
+  pointer-events: none;
+}
+
+.decoration-svg {
+  width: 100%;
+  height: 100%;
+}
+
 .stat-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  font-size: 24px;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.stat-svg {
+  width: 28px;
+  height: 28px;
 }
 
 .stat-info {
   flex: 1;
+  position: relative;
+  z-index: 1;
 }
 
 .stat-value {
@@ -262,12 +336,12 @@ function viewImage(image) {
 
 .image-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
 }
 
 .image-card {
-  border-radius: 12px;
+  border-radius: 10px;
   overflow: hidden;
   background: #f8fafc;
   cursor: pointer;
@@ -275,8 +349,8 @@ function viewImage(image) {
 }
 
 .image-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
 }
 
 .image-wrapper {
@@ -306,7 +380,7 @@ function viewImage(image) {
   opacity: 0;
   transition: opacity 0.3s ease;
   color: white;
-  font-size: 24px;
+  font-size: 20px;
 }
 
 .image-card:hover .image-overlay {
@@ -314,11 +388,11 @@ function viewImage(image) {
 }
 
 .image-info {
-  padding: 12px;
+  padding: 10px;
 }
 
 .image-name {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   color: #1e293b;
   white-space: nowrap;
@@ -327,9 +401,9 @@ function viewImage(image) {
 }
 
 .image-date {
-  font-size: 12px;
+  font-size: 11px;
   color: #94a3b8;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .quick-actions {
@@ -368,24 +442,12 @@ function viewImage(image) {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
   color: white;
 }
 
-.action-icon.upload {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-}
-
-.action-icon.browse {
-  background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
-}
-
-.action-icon.category {
-  background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
-}
-
-.action-icon.tag {
-  background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
+.action-svg {
+  width: 22px;
+  height: 22px;
 }
 
 .action-title {
@@ -400,6 +462,37 @@ function viewImage(image) {
   margin-top: 2px;
 }
 
+/* 预览弹窗 */
+.preview-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+}
+
+.preview-content img {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.preview-info {
+  margin-top: 16px;
+  text-align: center;
+}
+
+.preview-info h3 {
+  font-size: 16px;
+  color: #1e293b;
+  margin-bottom: 8px;
+}
+
+.preview-info p {
+  font-size: 14px;
+  color: #64748b;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -408,6 +501,12 @@ function viewImage(image) {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@media (max-width: 1400px) {
+  .image-grid {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
