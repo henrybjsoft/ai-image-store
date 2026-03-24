@@ -41,16 +41,18 @@
     <div class="pagination-wrapper" v-if="pagination.total > 0">
       <a-pagination
         v-model:current="pagination.current"
+        v-model:pageSize="pagination.pageSize"
         :total="pagination.total"
         :show-total="total => `共 ${total} 条`"
-        @change="loadLogs"
+        show-size-changer
+        :page-size-options="['10', '20', '50', '100']"
       />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import dayjs from 'dayjs'
 import { LoginOutlined, LogoutOutlined, UploadOutlined, DeleteOutlined, FolderAddOutlined, UserAddOutlined } from '@ant-design/icons-vue'
 import { logApi } from '@/api/log'
@@ -72,6 +74,22 @@ const pagination = reactive({
 onMounted(() => {
   loadLogs()
 })
+
+// 监听分页变化
+watch(
+  () => pagination.current,
+  () => {
+    loadLogs()
+  }
+)
+
+watch(
+  () => pagination.pageSize,
+  () => {
+    pagination.current = 1
+    loadLogs()
+  }
+)
 
 async function loadLogs() {
   loading.value = true

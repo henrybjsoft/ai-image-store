@@ -237,8 +237,15 @@
 - 查看已删除图片列表
 - 恢复单个图片
 - 批量恢复
-- 彻底删除
-- 清空回收站
+- 彻底删除（同时删除物理文件和向量数据）
+- 清空回收站（批量删除所有物理文件和向量数据）
+
+#### 3.7.2 彻底删除流程
+1. 获取图片文件路径
+2. 删除原图文件（uploads/YYYY-MM/xxx.jpg）
+3. 删除缩略图文件（uploads/thumbnails/thumb_xxx.jpg）
+4. 删除向量数据（vectors.json 中的记录）
+5. 删除数据库记录
 
 ### 3.8 收藏与标签模块
 
@@ -365,6 +372,42 @@ CREATE TABLE logs (
 - 存储文件：`data/vectors.json`
 - 索引结构：`{ imageId: [vector] }`
 - 搜索算法：余弦相似度
+
+### 4.3 数据访问层设计
+
+系统采用 Repository 模式封装所有数据库操作，位于 `server/src/repository/index.js`。
+
+#### 4.3.1 设计目标
+- 解耦业务逻辑与数据访问
+- 便于后期切换数据库（如 MySQL、PostgreSQL）
+- 统一数据访问接口，降低维护成本
+
+#### 4.3.2 Repository 模块
+
+| 模块 | 职责 |
+|------|------|
+| UserRepository | 用户增删改查、密码管理 |
+| ImageRepository | 图片增删改查、收藏、分类、标签关联 |
+| CategoryRepository | 分类管理 |
+| TagRepository | 标签管理 |
+| LogRepository | 操作日志记录与查询 |
+| SearchRepository | 搜索功能 |
+
+#### 4.3.3 使用方式
+
+```javascript
+// 业务代码中调用 Repository
+const { ImageRepository } = require('../repository');
+
+// 查询图片
+const image = ImageRepository.findById(id);
+
+// 创建图片
+const imageId = ImageRepository.create(imageData);
+
+// 更新图片
+ImageRepository.update(id, updateData);
+```
 
 ---
 
@@ -499,11 +542,16 @@ image-asset-management/
 │   ├── src/
 │   │   ├── routes/            # 路由处理
 │   │   ├── services/          # 业务逻辑
+│   │   ├── repository/        # 数据访问层（Repository 模式）
 │   │   ├── models/            # 数据模型
 │   │   ├── middlewares/       # 中间件
 │   │   └── app.js             # 入口文件
 │   ├── uploads/               # 上传文件存储
+│   │   ├── YYYY-MM/           # 按年月分目录存储原图
+│   │   └── thumbnails/        # 缩略图目录
 │   ├── data/                  # SQLite 数据库和向量索引
+│   │   ├── database.db        # SQLite 数据库文件
+│   │   └── vectors.json       # 向量索引文件
 │   ├── .env                   # 环境变量配置
 │   └── package.json
 ├── SPEC.md                     # 需求规格说明书
@@ -584,3 +632,4 @@ ALLOWED_FORMATS=jpg,jpeg,png,webp,gif,svg
 |------|------|------|
 | 2026-03-23 | v1.0.0 | 初始版本，完成核心功能开发 |
 | 2026-03-24 | v1.1.0 | 功能增强：<br>- 新增图片重新识别功能，支持重新调用AI分析并更新描述、关键词、分类和向量<br>- 修复中文文件名乱码问题，支持中文文件名上传和下载<br>- 改进下载功能，所有下载请求需携带JWT Token认证<br>- 优化导航栏布局样式<br>- 修复AI描述生成解析问题（支持数组格式响应） |
+| 2026-03-24 | v1.2.0 | 架构重构与优化：<br>- **数据访问层重构**：引入 Repository 模式，所有数据库操作封装到统一模块，便于后期切换数据库<br>- **UI优化**：左侧菜单栏固定定位，滚动时保持可见<br>- **UI优化**：顶部导航栏搜索框移至右侧，集成搜索按钮<br>- **UI优化**：图片详情收藏按钮改为图标按钮，固定宽度避免切换时变形<br>- **UI优化**：图片详情新增上传用户名显示<br>- **Bug修复**：操作日志页面分页组件支持切换每页显示数量<br>- **文档更新**：完善回收站删除功能说明，彻底删除时同步删除物理文件 |
