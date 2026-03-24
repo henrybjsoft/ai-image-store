@@ -57,7 +57,7 @@ router.get('/keyword', authenticateToken, (req, res) => {
 // 自然语言搜索（语义搜索）
 router.post('/semantic', authenticateToken, async (req, res) => {
   try {
-    const { query, topK = 20, page = 1, pageSize = 20 } = req.body;
+    const { query, topK = 20, page = 1, pageSize = 20, onlyMine = true } = req.body;
 
     if (!query || query.trim() === '') {
       return res.status(400).json({
@@ -69,8 +69,11 @@ router.post('/semantic', authenticateToken, async (req, res) => {
     // 获取查询文本的向量
     const embedding = await getEmbedding(query);
 
+    // 根据onlyMine参数决定是否过滤用户
+    const searchUserId = onlyMine ? req.user.id : null;
+
     // 搜索相似向量，使用topK参数
-    const similarities = searchSimilar(embedding, parseInt(topK));
+    const similarities = searchSimilar(embedding, parseInt(topK), searchUserId);
 
     if (similarities.length === 0) {
       return res.json({

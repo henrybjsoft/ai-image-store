@@ -295,7 +295,7 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
         });
 
         const embedding = await getEmbedding(buildEmbeddingText(aiResult.description, aiResult.extractedText));
-        await addImageVector(imageId, embedding);
+        await addImageVector(imageId, embedding, req.user.id);
 
         // 完成
         results.push({
@@ -416,7 +416,7 @@ router.post('/upload', authenticateToken, upload.array('images', MAX_FILES), asy
 
         // 获取描述的向量并存储
         const embedding = await getEmbedding(buildEmbeddingText(aiResult.description, aiResult.extractedText));
-        await addImageVector(imageId, embedding);
+        await addImageVector(imageId, embedding, req.user.id);
 
         results.push({
           id: imageId,
@@ -459,6 +459,7 @@ router.get('/', authenticateToken, (req, res) => {
       categoryId,
       isFavorite,
       keyword,
+      uploadedBy,
       page = 1,
       pageSize = 20,
       sortBy = 'created_at',
@@ -469,6 +470,7 @@ router.get('/', authenticateToken, (req, res) => {
       categoryId,
       isFavorite,
       keyword,
+      uploadedBy,
       page,
       pageSize,
       sortBy,
@@ -875,7 +877,7 @@ router.post('/:id/reanalyze', authenticateToken, requireAdmin, async (req, res) 
     // 更新向量数据库
     await removeImageVector(id);
     const embedding = await getEmbedding(buildEmbeddingText(aiResult.description, aiResult.extractedText));
-    await addImageVector(id, embedding);
+    await addImageVector(id, embedding, image.uploaded_by);
 
     LogRepository.create(req.user.id, 'reanalyze_image', 'image', id, `重新识别图片: ${image.original_name}`, req.ip);
 

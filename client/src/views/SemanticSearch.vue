@@ -17,6 +17,13 @@
         />
 
         <div class="search-options">
+          <a-checkbox
+            v-model:checked="onlyMyImages"
+            class="my-images-checkbox"
+          >
+            本人图片
+          </a-checkbox>
+
           <div class="option-item">
             <label>返回数量 (Top K)</label>
             <a-input-number
@@ -159,6 +166,7 @@ const hasSearched = ref(false)
 const query = ref('')
 const lastQuery = ref('')
 const topK = ref(10)
+const onlyMyImages = ref(true) // 默认选中"本人图片"
 const selectedCategory = ref(null)
 const selectedTag = ref(null)
 const categories = ref([])
@@ -234,6 +242,7 @@ async function handleSearch() {
     const res = await searchApi.semantic({
       query: query.value.trim(),
       topK: topK.value,
+      onlyMine: onlyMyImages.value,
       categoryId: selectedCategory.value,
       tagId: selectedTag.value
     })
@@ -385,6 +394,17 @@ function handleDeleteRefresh() {
   align-items: flex-end;
   gap: 16px;
   flex-wrap: wrap;
+}
+
+.my-images-checkbox {
+  font-weight: 500;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.my-images-checkbox :deep(.ant-checkbox-checked .ant-checkbox-inner) {
+  background-color: #6366f1;
+  border-color: #6366f1;
 }
 
 .option-item {

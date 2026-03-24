@@ -114,7 +114,7 @@ const ImageRepository = {
 
   // 获取图片列表（带筛选和分页）
   findList(options = {}) {
-    const { categoryId, isFavorite, keyword, isDeleted = 0, page = 1, pageSize = 20, sortBy = 'created_at', sortOrder = 'DESC' } = options;
+    const { categoryId, isFavorite, keyword, uploadedBy, isDeleted = 0, page = 1, pageSize = 20, sortBy = 'created_at', sortOrder = 'DESC' } = options;
     const db = getDatabase();
 
     let sql = `
@@ -139,6 +139,11 @@ const ImageRepository = {
       sql += ' AND (i.original_name LIKE ? OR i.description LIKE ? OR i.keywords LIKE ?)';
       const likeKeyword = `%${keyword}%`;
       params.push(likeKeyword, likeKeyword, likeKeyword);
+    }
+
+    if (uploadedBy) {
+      sql += ' AND i.uploaded_by = ?';
+      params.push(uploadedBy);
     }
 
     // 计算总数
@@ -673,13 +678,13 @@ const SearchRepository = {
 
 const VectorRepository = {
   // 添加或更新向量
-  upsert(imageId, embedding) {
+  upsert(imageId, embedding, userId = null) {
     const db = getDatabase();
     const embeddingJson = JSON.stringify(embedding);
     db.prepare(`
-      INSERT INTO vectors (image_id, embedding) VALUES (?, ?)
-      ON CONFLICT(image_id) DO UPDATE SET embedding = excluded.embedding, created_at = CURRENT_TIMESTAMP
-    `).run(imageId, embeddingJson);
+      INSERT INTO vectors (image_id, embedding, user_id) VALUES (?, ?, ?)
+      ON CONFLICT(image_id) DO UPDATE SET embedding = excluded.embedding, user_id = excluded.user_id, created_at = CURRENT_TIMESTAMP
+    `).run(imageId, embeddingJson, userId);
   },
 
   // 删除向量
@@ -709,19 +714,34 @@ const VectorRepository = {
   },
 
   // 获取所有向量
-  getAll() {
+  getAll(userId = null) {
     const db = getDatabase();
-    const rows = db.prepare('SELECT image_id, embedding FROM vectors').all();
+    let sql = 'SELECT image_id, embedding, user_id FROM vectors';
+    const params = [];
+    if (userId !== null) {
+      sql += ' WHERE user_id = ?';
+      params.push(userId);
+    }
+    const rows = db.prepare(sql).all(...params);
     const vectors = {};
     for (const row of rows) {
       try {
         vectors[row.image_id] = {
           embedding: JSON.parse(row.embedding),
+          userId: row.user_id,
           createdAt: row.created_at
         };
       } catch {}
     }
     return vectors;
+  },
+
+  // 批量更新向量的用户ID
+  updateUserId(imageIds, userId) {
+    if (!imageIds || imageIds.length === 0) return;
+    const db = getDatabase();
+    const placeholders = imageIds.map(() => '?').join(',');
+    db.prepare(`UPDATE vectors SET user_id = ? WHERE image_id IN (${placeholders})`).run(userId, ...imageIds);
   },
 
   // 清空所有向量

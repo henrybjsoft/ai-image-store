@@ -221,6 +221,18 @@ async function initDatabase() {
     )
   `);
 
+  // 添加向量表 user_id 字段
+  try {
+    const vectorColumns = db.exec("PRAGMA table_info(vectors)");
+    const vectorColumnNames = vectorColumns[0]?.values?.map(col => col[1]) || [];
+    if (!vectorColumnNames.includes('user_id')) {
+      database.exec('ALTER TABLE vectors ADD COLUMN user_id INTEGER REFERENCES users(id)');
+      console.log('已添加 vectors.user_id 列');
+    }
+  } catch (e) {
+    console.log('添加 vectors.user_id 列失败或已存在');
+  }
+
   // 添加用户表新字段
   const userColumns = db.exec("PRAGMA table_info(users)");
   const userColumnNames = userColumns[0]?.values?.map(col => col[1]) || [];

@@ -2,8 +2,8 @@ const { VectorRepository, ImageRepository } = require('../repository');
 const { getEmbedding } = require('./aiService');
 
 // 添加图片向量
-async function addImageVector(imageId, embedding) {
-  VectorRepository.upsert(imageId, embedding);
+async function addImageVector(imageId, embedding, userId = null) {
+  VectorRepository.upsert(imageId, embedding, userId);
   return imageId;
 }
 
@@ -13,8 +13,8 @@ async function removeImageVector(imageId) {
 }
 
 // 搜索相似向量
-function searchSimilar(embedding, k = 10) {
-  const vectors = VectorRepository.getAll();
+function searchSimilar(embedding, k = 10, userId = null) {
+  const vectors = VectorRepository.getAll(userId);
   const similarities = [];
 
   for (const [imageId, data] of Object.entries(vectors)) {
@@ -81,7 +81,7 @@ async function rebuildIndex() {
     if (image.description) {
       try {
         const embedding = await getEmbedding(buildEmbeddingText(image.description, image.extracted_text));
-        VectorRepository.upsert(image.id, embedding);
+        VectorRepository.upsert(image.id, embedding, image.uploaded_by);
         count++;
       } catch (error) {
         console.error(`重建索引失败 - 图片 ${image.id}:`, error);

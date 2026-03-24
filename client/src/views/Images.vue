@@ -6,6 +6,13 @@
         <div class="total-count" v-if="pagination.total > 0">
           共 <span class="count-number">{{ pagination.total }}</span> 张图片
         </div>
+        <a-checkbox
+          v-model:checked="onlyMyImages"
+          class="my-images-checkbox"
+          @change="handleFilter"
+        >
+          本人图片
+        </a-checkbox>
         <a-tree-select
           v-model:value="selectedCategory"
           :tree-data="categoryTree"
@@ -227,6 +234,7 @@ const tags = ref([])
 const selectedCategory = ref(null)
 const selectedTag = ref(null)
 const keyword = ref('')
+const onlyMyImages = ref(true) // 默认选中"本人图片"
 const viewMode = ref('grid')
 const selectedIds = ref([])
 const previewVisible = ref(false)
@@ -283,7 +291,9 @@ async function loadImages() {
       page: pagination.current,
       pageSize: pagination.pageSize,
       categoryId: selectedCategory.value,
-      keyword: keyword.value || undefined
+      keyword: keyword.value || undefined,
+      // 如果选中"本人图片"，则传递当前用户ID
+      uploadedBy: onlyMyImages.value ? userStore.user?.id : undefined
     }
 
     let res
@@ -321,6 +331,7 @@ function handleReset() {
   selectedCategory.value = null
   selectedTag.value = null
   keyword.value = ''
+  onlyMyImages.value = true
   pagination.current = 1
   loadImages()
 }
@@ -492,6 +503,16 @@ watch(() => route.query.keyword, (newKeyword) => {
 .count-number {
   color: #6366f1;
   font-weight: 600;
+}
+
+.my-images-checkbox {
+  font-weight: 500;
+  color: #64748b;
+}
+
+.my-images-checkbox :deep(.ant-checkbox-checked .ant-checkbox-inner) {
+  background-color: #6366f1;
+  border-color: #6366f1;
 }
 
 .filter-select {
