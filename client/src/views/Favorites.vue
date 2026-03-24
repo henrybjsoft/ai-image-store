@@ -41,17 +41,11 @@
     </div>
 
     <!-- 预览弹窗 -->
-    <a-modal v-model:open="previewVisible" :footer="null" width="80%" centered>
-      <div class="preview-content" v-if="previewImage">
-        <div class="preview-image">
-          <img :src="getImageUrl(previewImage, true)" />
-        </div>
-        <div class="preview-sidebar">
-          <h3>{{ previewImage.original_name }}</h3>
-          <p class="preview-desc">{{ previewImage.description || '暂无描述' }}</p>
-        </div>
-      </div>
-    </a-modal>
+    <ImageDetail
+      v-model:visible="previewVisible"
+      :image="previewImage"
+      @favorite="loadImages"
+    />
   </div>
 </template>
 
@@ -60,6 +54,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { HeartOutlined, HeartFilled, DownloadOutlined } from '@ant-design/icons-vue'
 import { imageApi } from '@/api/image'
+import ImageDetail from '@/components/ImageDetail.vue'
 
 const loading = ref(false)
 const images = ref([])
@@ -276,42 +271,6 @@ async function handleDownload(image) {
 .empty-state p {
   color: #64748b;
   margin-bottom: 24px;
-}
-
-.preview-content {
-  display: flex;
-  min-height: 60vh;
-}
-
-.preview-image {
-  flex: 1;
-  background: #1e293b;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-
-.preview-image img {
-  max-width: 100%;
-  max-height: 60vh;
-  object-fit: contain;
-}
-
-.preview-sidebar {
-  width: 280px;
-  padding: 24px;
-  background: white;
-}
-
-.preview-sidebar h3 {
-  font-size: 18px;
-  margin-bottom: 12px;
-}
-
-.preview-desc {
-  color: #64748b;
-  line-height: 1.6;
 }
 
 @keyframes fadeIn {

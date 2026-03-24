@@ -72,21 +72,12 @@
     </div>
 
     <!-- 图片预览弹窗 -->
-    <a-modal
-      v-model:open="previewVisible"
-      :footer="null"
-      width="80%"
-      centered
-      class="preview-modal"
-    >
-      <div class="preview-content" v-if="previewImage">
-        <img :src="getImageUrl(previewImage, true)" :alt="previewImage.original_name" />
-        <div class="preview-info">
-          <h3>{{ previewImage.original_name }}</h3>
-          <p v-if="previewImage.description">{{ previewImage.description }}</p>
-        </div>
-      </div>
-    </a-modal>
+    <ImageDetail
+      v-model:visible="previewVisible"
+      :image="previewImage"
+      :show-delete="false"
+      :show-reanalyze="false"
+    />
   </div>
 </template>
 
@@ -98,6 +89,7 @@ import { RightOutlined, EyeOutlined } from '@ant-design/icons-vue'
 import { imageApi } from '@/api/image'
 import { categoryApi } from '@/api/category'
 import { tagApi } from '@/api/tag'
+import ImageDetail from '@/components/ImageDetail.vue'
 
 const loading = ref(false)
 
@@ -460,54 +452,6 @@ function showPreview(image) {
   font-size: 12px;
   color: #64748b;
   margin-top: 2px;
-}
-
-/* 预览弹窗 */
-.preview-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 20px;
-}
-
-.preview-content img {
-  max-width: 100%;
-  max-height: 70vh;
-  object-fit: contain;
-  border-radius: 8px;
-}
-
-.preview-info {
-  margin-top: 16px;
-  text-align: center;
-}
-
-.preview-info h3 {
-  font-size: 16px;
-  color: #1e293b;
-  margin-bottom: 8px;
-}
-
-.preview-info p {
-  font-size: 14px;
-  color: #64748b;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@media (max-width: 1400px) {
-  .image-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
 }
 
 @media (max-width: 1200px) {

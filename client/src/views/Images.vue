@@ -181,88 +181,13 @@
       />
     </div>
 
-    <!-- 图片预览弹窗 -->
-    <a-modal
-      v-model:open="previewVisible"
-      :footer="null"
-      width="90%"
-      centered
-      class="preview-modal"
-    >
-      <div class="preview-container" v-if="previewImage">
-        <div class="preview-image">
-          <img :src="getImageUrl(previewImage, true)" />
-          <div class="image-actions">
-            <a-tooltip :title="previewImage.is_favorite ? '取消收藏' : '收藏'">
-              <div class="image-action-btn" :class="{ favorited: previewImage.is_favorite }" @click="handleFavorite(previewImage)">
-                <HeartFilled v-if="previewImage.is_favorite" />
-                <HeartOutlined v-else />
-              </div>
-            </a-tooltip>
-            <a-tooltip title="删除">
-              <div class="image-action-btn delete" @click="handleDeleteFromPreview(previewImage)">
-                <DeleteOutlined />
-              </div>
-            </a-tooltip>
-          </div>
-        </div>
-        <div class="preview-sidebar">
-          <h3>{{ previewImage.original_name }}</h3>
-          <div class="preview-section">
-            <div class="section-label">描述</div>
-            <div class="section-content">{{ previewImage.description || '暂无描述' }}</div>
-          </div>
-          <div class="preview-section">
-            <div class="section-label">关键词</div>
-            <div class="section-tags">
-              <a-tag v-for="kw in (previewImage.keywords || [])" :key="kw">{{ kw }}</a-tag>
-              <span v-if="!previewImage.keywords?.length" class="empty-text">暂无</span>
-            </div>
-          </div>
-          <div class="preview-section">
-            <div class="section-label">分类</div>
-            <div class="section-content">{{ previewImage.category_name || '未分类' }}</div>
-          </div>
-          <div class="preview-section">
-            <div class="section-label">标签</div>
-            <div class="section-tags">
-              <a-tag v-for="tag in (previewImage.tags || [])" :key="tag.id" color="blue">{{ tag.name }}</a-tag>
-              <span v-if="!previewImage.tags?.length" class="empty-text">暂无</span>
-            </div>
-          </div>
-          <div class="preview-section">
-            <div class="section-label">文件信息</div>
-            <div class="section-info">
-              <div class="info-row">
-                <span class="info-label">大小</span>
-                <span class="info-value">{{ formatSize(previewImage.file_size) }}</span>
-              </div>
-              <div class="info-row">
-                <span class="info-label">格式</span>
-                <span class="info-value">{{ previewImage.file_format?.toUpperCase() }}</span>
-              </div>
-              <div class="info-row">
-                <span class="info-label">上传者</span>
-                <span class="info-value">{{ previewImage.uploader_name || '未知' }}</span>
-              </div>
-              <div class="info-row">
-                <span class="info-label">上传时间</span>
-                <span class="info-value">{{ formatDate(previewImage.created_at) }}</span>
-              </div>
-            </div>
-          </div>
-          <div class="preview-actions">
-            <a-button type="primary" @click="handleDownload(previewImage)">
-              <DownloadOutlined /> 下载
-            </a-button>
-            <a-button class="reanalyze-btn" :loading="reanalyzing" @click="handleReanalyze(previewImage)">
-              <template #icon><SyncOutlined /></template>
-              重新识别
-            </a-button>
-          </div>
-        </div>
-      </div>
-    </a-modal>
+    <!-- 图片详情弹窗 -->
+    <ImageDetail
+      v-model:visible="previewVisible"
+      :image="previewImage"
+      @delete="handleDeleteRefresh"
+      @reanalyze="handleReanalyzeRefresh"
+    />
 
     </div>
 </template>
@@ -280,7 +205,6 @@ import {
   HeartFilled,
   DownloadOutlined,
   DeleteOutlined,
-  SyncOutlined,
   SearchOutlined,
   ReloadOutlined
 } from '@ant-design/icons-vue'
@@ -288,6 +212,7 @@ import { imageApi } from '@/api/image'
 import { categoryApi } from '@/api/category'
 import { tagApi } from '@/api/tag'
 import { searchApi } from '@/api/search'
+import ImageDetail from '@/components/ImageDetail.vue'
 
 const route = useRoute()
 
@@ -302,7 +227,6 @@ const viewMode = ref('grid')
 const selectedIds = ref([])
 const previewVisible = ref(false)
 const previewImage = ref(null)
-const reanalyzing = ref(false)
 
 // 全选相关计算属性
 const isAllSelected = computed(() => {
@@ -463,15 +387,12 @@ async function handleDelete(image) {
   }
 }
 
-async function handleDeleteFromPreview(image) {
-  try {
-    await imageApi.delete(image.id)
-    message.success('已移入回收站')
-    previewVisible.value = false
-    loadImages()
-  } catch (error) {
-    message.error('删除失败')
-  }
+function handleDeleteRefresh() {
+  loadImages()
+}
+
+function handleReanalyzeRefresh() {
+  // 图片信息已在组件内更新
 }
 
 async function handleBatchDownload() {
@@ -507,25 +428,6 @@ async function handleBatchDelete() {
       }
     }
   })
-}
-
-async function handleReanalyze(image) {
-  reanalyzing.value = true
-  try {
-    const res = await imageApi.reanalyze(image.id)
-    message.success('重新识别成功')
-    // 更新当前图片信息
-    image.description = res.data.description
-    image.keywords = res.data.keywords
-    if (res.data.categoryId) {
-      image.category_id = res.data.categoryId
-      image.category_name = res.data.categoryName
-    }
-  } catch (error) {
-    message.error('重新识别失败')
-  } finally {
-    reanalyzing.value = false
-  }
 }
 
 watch(() => pagination.current, () => loadImages())
@@ -916,155 +818,6 @@ watch(() => route.query.keyword, (newKeyword) => {
   border-radius: 16px;
 }
 
-/* 预览弹窗 */
-.preview-modal :deep(.ant-modal-content) {
-  padding: 0;
-}
-
-.preview-container {
-  display: flex;
-  min-height: 70vh;
-}
-
-.preview-image {
-  flex: 1;
-  background: #1e293b;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  position: relative;
-}
-
-.preview-image img {
-  max-width: 100%;
-  max-height: 70vh;
-  object-fit: contain;
-  border-radius: 8px;
-}
-
-.image-actions {
-  position: absolute;
-  bottom: 40px;
-  right: 40px;
-  display: flex;
-  gap: 12px;
-}
-
-.image-action-btn {
-  width: 44px;
-  height: 44px;
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: #64748b;
-  font-size: 18px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.image-action-btn:hover {
-  background: white;
-  transform: scale(1.1);
-}
-
-.image-action-btn.favorited {
-  color: #ef4444;
-}
-
-.image-action-btn.favorited:hover {
-  background: #fee2e2;
-}
-
-.image-action-btn.delete {
-  color: #ef4444;
-}
-
-.image-action-btn.delete:hover {
-  background: #fee2e2;
-  color: #dc2626;
-}
-
-.preview-sidebar {
-  width: 320px;
-  padding: 24px;
-  background: white;
-  overflow-y: auto;
-}
-
-.preview-sidebar h3 {
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 24px;
-  color: #1e293b;
-}
-
-.preview-section {
-  margin-bottom: 20px;
-}
-
-.section-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 8px;
-}
-
-.section-content {
-  color: #1e293b;
-  line-height: 1.6;
-}
-
-.section-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.empty-text {
-  color: #94a3b8;
-  font-size: 13px;
-}
-
-.section-info {
-  background: #f8fafc;
-  border-radius: 8px;
-  padding: 12px;
-}
-
-.info-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 6px 0;
-}
-
-.info-label {
-  color: #64748b;
-  font-size: 13px;
-}
-
-.info-value {
-  color: #1e293b;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.preview-actions {
-  display: flex;
-  gap: 12px;
-  margin-top: 24px;
-}
-
-.reanalyze-btn {
-  min-width: 104px;
-}
-
-/* 语义搜索 */
 /* 空状态 */
 .empty-state {
   padding: 60px 20px;

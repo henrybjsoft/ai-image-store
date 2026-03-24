@@ -111,27 +111,13 @@
     </div>
 
     <!-- 图片预览弹窗 -->
-    <a-modal
-      v-model:open="previewVisible"
-      :footer="null"
-      width="80%"
-      centered
-      class="preview-modal"
-    >
-      <div class="preview-content" v-if="previewItem">
-        <img :src="getImageUrl(previewItem.image, true)" :alt="previewItem.image.original_name" />
-        <div class="preview-info">
-          <h3>{{ previewItem.image.original_name }}</h3>
-          <div class="preview-similarity">
-            <BulbOutlined /> 相似度: {{ (previewItem.similarity * 100).toFixed(2) }}%
-          </div>
-          <p v-if="previewItem.image.description">{{ previewItem.image.description }}</p>
-          <div class="preview-tags" v-if="previewItem.image.tags?.length">
-            <a-tag v-for="tag in previewItem.image.tags" :key="tag.id">{{ tag.name }}</a-tag>
-          </div>
-        </div>
-      </div>
-    </a-modal>
+    <ImageDetail
+      v-model:visible="previewVisible"
+      :image="previewItem?.image"
+      :similarity="previewItem?.similarity"
+      :show-delete="false"
+      :show-reanalyze="false"
+    />
   </div>
 </template>
 
@@ -147,6 +133,7 @@ import {
 import { searchApi } from '@/api/search'
 import { categoryApi } from '@/api/category'
 import { tagApi } from '@/api/tag'
+import ImageDetail from '@/components/ImageDetail.vue'
 
 const loading = ref(false)
 const hasSearched = ref(false)
@@ -509,58 +496,6 @@ function showPreview(item) {
   font-size: 14px;
   color: #64748b;
   margin: 0;
-}
-
-/* 预览弹窗 */
-.preview-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 20px;
-}
-
-.preview-content img {
-  max-width: 100%;
-  max-height: 60vh;
-  object-fit: contain;
-  border-radius: 8px;
-}
-
-.preview-info {
-  margin-top: 20px;
-  text-align: center;
-}
-
-.preview-info h3 {
-  font-size: 16px;
-  color: #1e293b;
-  margin-bottom: 8px;
-}
-
-.preview-similarity {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  color: white;
-  padding: 6px 12px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  margin-bottom: 12px;
-}
-
-.preview-info p {
-  font-size: 14px;
-  color: #64748b;
-  margin-bottom: 12px;
-}
-
-.preview-tags {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  flex-wrap: wrap;
 }
 
 @keyframes fadeIn {
