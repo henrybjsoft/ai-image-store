@@ -127,7 +127,10 @@ router.post('/upload', authenticateToken, upload.array('images', MAX_FILES), asy
         // 调用 AI 识别图片
         const aiResult = await processImageWithAI(file.path);
 
-        // 保存图片信息到数据库
+        // 保存图片信息到数据库（使用相对路径）
+        const relativeFilePath = path.relative(UPLOAD_DIR, file.path).replace(/\\/g, '/');
+        const relativeThumbnailPath = thumbnailPath ? path.relative(UPLOAD_DIR, thumbnailPath).replace(/\\/g, '/') : null;
+
         const result = db.prepare(`
           INSERT INTO images (
             filename, original_name, file_path, thumbnail_path,
@@ -137,8 +140,8 @@ router.post('/upload', authenticateToken, upload.array('images', MAX_FILES), asy
         `).run(
           file.filename,
           file.originalname,
-          file.path,
-          thumbnailPath,
+          relativeFilePath,
+          relativeThumbnailPath,
           file.size,
           path.extname(file.originalname).toLowerCase().slice(1),
           dimensions.width,

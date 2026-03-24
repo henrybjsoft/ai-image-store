@@ -9,7 +9,8 @@
       "Bash(curl -s http://localhost:3000/api/health)",
       "Bash(findstr \":5173 :3000\")",
       "Bash(powershell -Command \"Stop-Process -Id 40448,28708 -Force\")",
-      "Bash(findstr LISTENING)"
+      "Bash(findstr LISTENING)",
+      "Bash(powershell -Command \"Stop-Process -Id 33244 -Force\")"
     ]
   }
 }

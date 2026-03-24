@@ -359,9 +359,9 @@ function toggleSelect(id) {
 
 function getImageUrl(image, full = false) {
   if (!full && image.thumbnail_path) {
-    return `/uploads/thumbnails/${image.thumbnail_path.split('/').pop()}`
+    return `/uploads/${image.thumbnail_path}`
   }
-  return `/uploads/${image.file_path.split('/').slice(-2).join('/')}`
+  return `/uploads/${image.file_path}`
 }
 
 function formatSize(bytes) {
