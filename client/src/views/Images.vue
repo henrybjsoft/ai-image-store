@@ -213,6 +213,10 @@
                 <span class="info-value">{{ previewImage.file_format?.toUpperCase() }}</span>
               </div>
               <div class="info-row">
+                <span class="info-label">上传者</span>
+                <span class="info-value">{{ previewImage.uploader_name || '未知' }}</span>
+              </div>
+              <div class="info-row">
                 <span class="info-label">上传时间</span>
                 <span class="info-value">{{ formatDate(previewImage.created_at) }}</span>
               </div>
@@ -226,11 +230,12 @@
               <template #icon><SyncOutlined /></template>
               重新识别
             </a-button>
-            <a-button @click="handleFavorite(previewImage)">
-              <HeartFilled v-if="previewImage.is_favorite" style="color: #ef4444" />
-              <HeartOutlined v-else />
-              {{ previewImage.is_favorite ? '取消收藏' : '收藏' }}
-            </a-button>
+            <a-tooltip :title="previewImage.is_favorite ? '取消收藏' : '收藏'">
+              <a-button :class="['favorite-btn', { favorited: previewImage.is_favorite }]" @click="handleFavorite(previewImage)">
+                <HeartFilled v-if="previewImage.is_favorite" />
+                <HeartOutlined v-else />
+              </a-button>
+            </a-tooltip>
           </div>
         </div>
       </div>
@@ -907,6 +912,24 @@ watch(() => route.query.keyword, (newKeyword) => {
 
 .reanalyze-btn {
   min-width: 104px;
+}
+
+.favorite-btn {
+  width: 40px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.favorite-btn.favorited {
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
+.favorite-btn.favorited:hover {
+  color: #dc2626;
+  border-color: #dc2626;
 }
 
 /* 语义搜索 */
