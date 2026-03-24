@@ -617,12 +617,35 @@ watch(() => route.query.keyword, (newKeyword) => {
 }
 
 .filter-search {
-  width: 200px;
+  width: 220px;
+}
+
+.filter-search :deep(.ant-input),
+.filter-search :deep(.ant-input-affix-wrapper) {
+  border-radius: 8px 0 0 8px !important;
+  border-right: none !important;
+}
+
+.filter-search :deep(.ant-input:focus),
+.filter-search :deep(.ant-input:hover),
+.filter-search :deep(.ant-input-affix-wrapper:focus),
+.filter-search :deep(.ant-input-affix-wrapper:hover) {
+  border-radius: 8px 0 0 8px !important;
+  border-right: none !important;
+}
+
+.filter-search :deep(.ant-input-group-addon) {
+  background: transparent;
+}
+
+.filter-search :deep(.ant-input-search-button) {
+  border-radius: 0 8px 8px 0 !important;
 }
 
 .semantic-btn {
   background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
   border: none;
+  margin-left: 8px;
 }
 
 .filter-right {
