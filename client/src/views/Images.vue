@@ -94,6 +94,9 @@
               <div class="action-item" @click.stop="handleDownload(image)">
                 <DownloadOutlined />
               </div>
+              <div class="action-item delete" @click.stop="handleDelete(image)">
+                <DeleteOutlined />
+              </div>
             </div>
           </div>
         </div>
@@ -141,11 +144,9 @@
           <a-button type="text" size="small" @click="handleDownload(image)">
             <DownloadOutlined />
           </a-button>
-          <a-popconfirm title="确定删除？" @confirm="handleDelete(image)">
-            <a-button type="text" size="small" danger>
-              <DeleteOutlined />
-            </a-button>
-          </a-popconfirm>
+          <a-button type="text" size="small" danger @click="handleDelete(image)">
+            <DeleteOutlined />
+          </a-button>
         </div>
       </div>
     </div>
@@ -239,6 +240,9 @@
                 <HeartOutlined v-else />
               </a-button>
             </a-tooltip>
+            <a-button danger @click="handleDeleteFromPreview(previewImage)">
+                <DeleteOutlined /> 删除
+              </a-button>
           </div>
         </div>
       </div>
@@ -264,7 +268,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import dayjs from 'dayjs'
 import {
   AppstoreOutlined,
@@ -432,6 +436,17 @@ async function handleDelete(image) {
   }
 }
 
+async function handleDeleteFromPreview(image) {
+  try {
+    await imageApi.delete(image.id)
+    message.success('已移入回收站')
+    previewVisible.value = false
+    loadImages()
+  } catch (error) {
+    message.error('删除失败')
+  }
+}
+
 async function handleBatchDownload() {
   try {
     const res = await imageApi.batchDownload(selectedIds.value)
@@ -448,14 +463,23 @@ async function handleBatchDownload() {
 }
 
 async function handleBatchDelete() {
-  try {
-    await imageApi.batchDelete(selectedIds.value)
-    message.success('已移入回收站')
-    selectedIds.value = []
-    loadImages()
-  } catch (error) {
-    message.error('删除失败')
-  }
+  Modal.confirm({
+    title: '确定删除？',
+    content: `将删除选中的 ${selectedIds.value.length} 张图片，删除后可在回收站恢复`,
+    okText: '确定',
+    cancelText: '取消',
+    okType: 'danger',
+    async onOk() {
+      try {
+        await imageApi.batchDelete(selectedIds.value)
+        message.success('已移入回收站')
+        selectedIds.value = []
+        loadImages()
+      } catch (error) {
+        message.error('删除失败')
+      }
+    }
+  })
 }
 
 async function handleReanalyze(image) {
@@ -703,6 +727,15 @@ watch(() => route.query.keyword, (newKeyword) => {
 
 .action-item .favorited {
   color: #ef4444;
+}
+
+.action-item.delete {
+  color: #ef4444;
+}
+
+.action-item.delete:hover {
+  background: #fee2e2;
+  color: #dc2626;
 }
 
 .image-info {
