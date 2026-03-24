@@ -567,6 +567,14 @@ ImageRepository.update(id, updateData);
 |------|------|------|
 | GET | /api/logs | 获取操作日志列表 |
 
+### 5.9 系统 API
+
+| 方法 | 路径 | 描述 |
+|------|------|------|
+| GET | /api/system/config | 获取系统配置（管理员权限，敏感信息打码） |
+| GET | /api/system/stats | 获取系统统计信息（管理员权限） |
+| GET | /api/system/user-ranking | 获取用户上传排名（管理员权限） |
+
 ---
 
 ## 6. 非功能性需求
@@ -630,9 +638,18 @@ image-asset-management/
 │   │   └── thumbnails/        # 缩略图目录
 │   ├── data/                  # SQLite 数据库
 │   │   └── database.db        # SQLite 数据库文件（含向量数据）
+│   ├── public/                # 前端构建产物（生产环境）
 │   ├── .env                   # 环境变量配置
+│   ├── .env.example           # 环境变量模板
 │   └── package.json
+├── scripts/                    # 脚本文件
+│   ├── build-release.js       # 发布脚本
+│   ├── start.bat              # Windows 启动脚本
+│   └── start.sh               # Linux 启动脚本
+├── release/                    # 发布输出目录
+│   └── image-asset-management/
 ├── SPEC.md                     # 需求规格说明书
+├── DEPLOYMENT.md               # 部署说明文档
 ├── README.md                   # 项目说明
 └── package.json                # 根目录脚本
 ```
@@ -645,19 +662,30 @@ image-asset-management/
 
 ```bash
 # 服务器配置
+HOST=0.0.0.0                   # 监听地址：0.0.0.0 监听所有网卡，127.0.0.1 仅本机
 PORT=3000
 NODE_ENV=development
 
 # JWT 密钥
 JWT_SECRET=your-super-secret-jwt-key-change-in-production
+JWT_EXPIRES_IN=7d
 
 # DashScope API 配置
 DASHSCOPE_API_KEY=your-dashscope-api-key
+
+# AI 模型配置
+AI_VISION_MODEL=qwen-vl-plus
+AI_EMBEDDING_MODEL=text-embedding-v3
 
 # 文件上传配置
 MAX_FILE_SIZE=10485760        # 10MB
 MAX_FILES=100
 UPLOAD_DIR=./uploads
+UPLOAD_CONCURRENCY=5          # 上传并发数
+
+# 缩略图配置
+THUMBNAIL_SIZE=400
+THUMBNAIL_QUALITY=80
 
 # 允许的图片格式
 ALLOWED_FORMATS=jpg,jpeg,png,webp,gif,svg
@@ -720,3 +748,4 @@ ALLOWED_FORMATS=jpg,jpeg,png,webp,gif,svg
 | 2026-03-24 | v1.9.0 | 用户功能增强与UI优化：<br>- **修改密码功能**：新增修改密码页面，用户可自主修改密码（需验证旧密码）<br>- **用户菜单优化**：用户下拉菜单改为"修改密码"和"退出登录"，移除个人信息入口<br>- **用户信息样式**：悬停背景改为固定高度，避免占满导航栏 |
 | 2026-03-24 | v2.0.0 | 用户体系与权限管理重大升级：<br>- **用户信息扩展**：新增用户名称、说明、上传限额、可用状态、有效期（生效日期/失效日期）等字段<br>- **用户类型**：支持管理员和普通用户两种类型，管理员可编辑用户类型<br>- **有效期控制**：支持设置生效日期和失效日期，空值表示不限制，非有效期范围内禁止登录<br>- **状态控制**：用户可被禁用，禁用后无法登录<br>- **上传限额**：管理员可设置用户上传限额（默认100张），超出限额禁止上传<br>- **权限控制**：普通用户不能访问用户管理和操作日志；分类/标签仅可查看；只能删除自己上传的图片；不能使用重新识别功能<br>- **admin保护**：admin用户不可删除，不可修改状态/有效期/类型，仅允许修改名称和说明 |
 | 2026-03-24 | v2.1.0 | 上传与权限控制优化：<br>- **上传数量调整**：单次上传数量限制从20张调整为100张<br>- **配额显示优化**：管理员显示已上传张数，普通用户显示配额使用情况（已传/限额/剩余）<br>- **配额前端校验**：选择文件时前端实时校验剩余配额，超出部分自动标记为无效<br>- **删除权限统一**：图片库、语义搜索、收藏页面统一删除逻辑，管理员可删除所有图片，普通用户仅可删除自己上传的图片<br>- **重新识别权限**：重新识别功能统一为仅管理员可用<br>- **语义搜索卡片**：搜索结果卡片增加收藏、下载、删除操作按钮，与图片库卡片样式一致 |
+| 2026-03-25 | v2.2.0 | 系统功能完善与部署优化：<br>- **系统信息页面**：新增管理员专属页面，显示配置变量（API Key中间打码）、系统统计、用户排名<br>- **发布脚本**：新增 `npm run release` 命令，一键打包生产环境所需文件到 `release/` 目录<br>- **HOST配置**：新增 HOST 环境变量，支持配置监听地址（默认 0.0.0.0 监听所有网卡）<br>- **图片选择优化**：网格视图下复选框移至卡片底部文字区域，点击整个文字区域即可选中<br>- **图片详情布局**：右侧信息栏可滚动，下载和重新识别按钮固定在底部<br>- **回收站错误处理**：清空回收站时文件被占用不会中断流程，跳过失败文件继续删除<br>- **登录界面修复**：修复密码输入框图标悬停消失问题，改用组件 prefix 插槽 |

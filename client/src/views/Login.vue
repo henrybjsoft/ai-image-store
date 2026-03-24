@@ -58,30 +58,32 @@
               name="username"
               :rules="[{ required: true, message: '请输入用户名' }]"
             >
-              <div class="input-wrapper">
-                <UserOutlined class="input-icon" />
-                <a-input
-                  v-model:value="formState.username"
-                  size="large"
-                  placeholder="用户名"
-                  class="custom-input"
-                />
-              </div>
+              <a-input
+                v-model:value="formState.username"
+                size="large"
+                placeholder="用户名"
+                class="custom-input"
+              >
+                <template #prefix>
+                  <UserOutlined class="input-prefix-icon" />
+                </template>
+              </a-input>
             </a-form-item>
 
             <a-form-item
               name="password"
               :rules="[{ required: true, message: '请输入密码' }]"
             >
-              <div class="input-wrapper">
-                <LockOutlined class="input-icon" />
-                <a-input-password
-                  v-model:value="formState.password"
-                  size="large"
-                  placeholder="密码"
-                  class="custom-input"
-                />
-              </div>
+              <a-input-password
+                v-model:value="formState.password"
+                size="large"
+                placeholder="密码"
+                class="custom-input"
+              >
+                <template #prefix>
+                  <LockOutlined class="input-prefix-icon" />
+                </template>
+              </a-input-password>
             </a-form-item>
 
             <a-form-item>
@@ -303,22 +305,12 @@ async function handleLogin() {
   margin-bottom: 32px;
 }
 
-.input-wrapper {
-  position: relative;
-}
-
-.input-icon {
-  position: absolute;
-  left: 16px;
-  top: 50%;
-  transform: translateY(-50%);
+.input-prefix-icon {
   color: #94a3b8;
-  z-index: 1;
   font-size: 16px;
 }
 
 .custom-input {
-  padding-left: 44px !important;
   border-radius: 12px !important;
   border: 2px solid #e2e8f0 !important;
   transition: all 0.2s ease !important;
