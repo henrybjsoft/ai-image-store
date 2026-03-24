@@ -78,16 +78,16 @@
         <div class="header-right">
           <!-- 搜索栏 -->
           <div class="search-wrapper">
-            <a-input-search
+            <a-input
               v-model:value="searchKeyword"
               placeholder="搜索图片..."
-              @search="handleSearch"
+              @pressEnter="handleSearch"
               class="search-input"
             >
               <template #prefix>
-                <SearchOutlined />
+                <SearchOutlined class="search-icon" @click="handleSearch" />
               </template>
-            </a-input-search>
+            </a-input>
           </div>
 
           <!-- 快捷操作 -->
@@ -432,39 +432,38 @@ function handleLogout() {
 }
 
 .search-input {
-  border-radius: 10px;
   background: #f1f5f9;
-  display: flex;
-  align-items: center;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
 }
 
-.search-input :deep(.ant-input-affix-wrapper) {
-  background: #f1f5f9;
-  border: none;
-  border-radius: 10px;
-  padding: 4px 12px;
-  display: flex;
-  align-items: center;
+.search-input:hover {
+  background: #e8ecf2;
+}
+
+.search-input:focus,
+.search-input :deep(.ant-input:focus) {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
 }
 
 .search-input :deep(.ant-input) {
   background: transparent;
-  border: none;
-  height: 32px !important;
-  line-height: 32px !important;
+  height: 36px !important;
+  line-height: 36px !important;
+  padding-left: 8px;
 }
 
-.search-input :deep(.ant-input:focus) {
-  box-shadow: none;
-}
-
-.search-input :deep(.ant-input-affix-wrapper:hover) {
-  background: #e2e8f0;
-}
-
-.search-input :deep(.ant-input-prefix) {
+.search-icon {
   color: #94a3b8;
-  margin-right: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.search-icon:hover {
+  color: #6366f1;
 }
 
 .upload-btn {

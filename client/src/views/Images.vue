@@ -25,12 +25,16 @@
             {{ tag.name }}
           </a-select-option>
         </a-select>
-        <a-input-search
+        <a-input
           v-model:value="keyword"
           placeholder="搜索..."
           class="filter-search"
-          @search="handleFilter"
-        />
+          @pressEnter="handleFilter"
+        >
+          <template #prefix>
+            <SearchOutlined class="search-icon" @click="handleFilter" />
+          </template>
+        </a-input>
         <a-button type="primary" class="semantic-btn" @click="showSemanticSearch = true">
           <BulbOutlined /> 语义搜索
         </a-button>
@@ -291,7 +295,8 @@ import {
   DownloadOutlined,
   DeleteOutlined,
   BulbOutlined,
-  SyncOutlined
+  SyncOutlined,
+  SearchOutlined
 } from '@ant-design/icons-vue'
 import { imageApi } from '@/api/image'
 import { categoryApi } from '@/api/category'
@@ -617,29 +622,43 @@ watch(() => route.query.keyword, (newKeyword) => {
 }
 
 .filter-search {
-  width: 220px;
+  width: 200px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
 }
 
-.filter-search :deep(.ant-input),
-.filter-search :deep(.ant-input-affix-wrapper) {
-  border-radius: 8px 0 0 8px !important;
-  border-right: none !important;
+.filter-search:hover {
+  background: #e8ecf2;
 }
 
-.filter-search :deep(.ant-input:focus),
-.filter-search :deep(.ant-input:hover),
-.filter-search :deep(.ant-input-affix-wrapper:focus),
-.filter-search :deep(.ant-input-affix-wrapper:hover) {
-  border-radius: 8px 0 0 8px !important;
-  border-right: none !important;
+.filter-search:focus,
+.filter-search :deep(.ant-input:focus) {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
 }
 
-.filter-search :deep(.ant-input-group-addon) {
+.filter-search :deep(.ant-input) {
   background: transparent;
+  height: 30px !important;
+  line-height: 30px !important;
+  padding-left: 8px;
 }
 
-.filter-search :deep(.ant-input-search-button) {
-  border-radius: 0 8px 8px 0 !important;
+.filter-search :deep(.ant-input-prefix) {
+  margin-right: 8px;
+}
+
+.filter-search .search-icon {
+  color: #94a3b8;
+  font-size: 14px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.filter-search .search-icon:hover {
+  color: #6366f1;
 }
 
 .semantic-btn {
