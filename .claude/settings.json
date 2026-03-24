@@ -18,7 +18,13 @@
       "Bash(node src/app.js)",
       "Bash(npm run:*)",
       "Bash(findstr \":5173\")",
-      "Bash(taskkill //F //PID 29500)"
+      "Bash(taskkill //F //PID 29500)",
+      "Bash(node -c src/routes/images.js)",
+      "Bash(curl -s -X POST http://localhost:3000/api/images/upload-progress -H \"Content-Type: application/json\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/images/upload-progress -H \"Authorization: Bearer test\")",
+      "Bash(pkill -f \"node src/app.js\")",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(taskkill //F //PID 14100)"
     ]
   }
 }

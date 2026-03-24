@@ -28,43 +28,69 @@
         </a-upload-dragger>
       </div>
 
-      <!-- 上传进度 -->
-      <div v-if="uploading" class="progress-section">
+      <!-- 上传进度列表 -->
+      <div v-if="uploadingItems.length > 0" class="progress-section">
         <div class="progress-header">
-          <span>正在处理...</span>
-          <span>{{ uploadProgress }}%</span>
+          <span>处理进度</span>
+          <span>{{ completedCount }} / {{ uploadingItems.length }}</span>
         </div>
-        <a-progress :percent="uploadProgress" :show-info="false" stroke-color="#6366f1" />
-      </div>
-
-      <!-- 上传结果 -->
-      <div v-if="uploadResults.length > 0" class="results-section">
-        <h4>上传结果</h4>
-        <div class="results-list">
+        <div class="progress-list">
           <div
-            v-for="(result, index) in uploadResults"
-            :key="index"
-            class="result-item"
-            :class="result.success ? 'success' : 'error'"
+            v-for="item in uploadingItems"
+            :key="item.fileName"
+            class="progress-item"
+            :class="item.status"
           >
-            <div class="result-icon">
-              <CheckCircleFilled v-if="result.success" />
-              <CloseCircleFilled v-else />
+            <div class="item-info">
+              <div class="item-name">{{ item.fileName }}</div>
+              <div class="item-step" v-if="item.status === 'processing'">
+                <LoadingOutlined class="spinning" />
+                {{ item.stepText }}
+              </div>
+              <div class="item-step success" v-else-if="item.status === 'success'">
+                <CheckCircleFilled /> 上传成功
+              </div>
+              <div class="item-step error" v-else-if="item.status === 'error'">
+                <CloseCircleFilled /> {{ item.error || '处理失败' }}
+              </div>
             </div>
-            <div class="result-name">{{ result.original_name }}</div>
-            <div class="result-status">
-              {{ result.success ? '成功' : result.error }}
+            <div class="item-progress" v-if="item.status === 'processing'">
+              <a-progress
+                :percent="item.progress"
+                :show-info="false"
+                :stroke-color="progressColors"
+                size="small"
+              />
             </div>
           </div>
         </div>
       </div>
 
+      <!-- 上传结果统计 -->
+      <div v-if="showResult" class="result-summary">
+        <a-alert
+          :type="failedCount > 0 ? 'warning' : 'success'"
+          show-icon
+        >
+          <template #message>
+            <span v-if="successCount > 0">成功上传 {{ successCount }} 张图片</span>
+            <span v-if="failedCount > 0">，{{ failedCount }} 张失败</span>
+          </template>
+        </a-alert>
+      </div>
+
       <!-- 操作按钮 -->
       <div class="upload-actions">
-        <a-button type="primary" size="large" :loading="uploading" :disabled="fileList.length === 0" @click="handleUpload">
+        <a-button
+          type="primary"
+          size="large"
+          :loading="uploading"
+          :disabled="fileList.length === 0"
+          @click="handleUpload"
+        >
           <UploadOutlined /> 开始上传
         </a-button>
-        <a-button size="large" :disabled="fileList.length === 0" @click="handleClear">
+        <a-button size="large" :disabled="fileList.length === 0 || uploading" @click="handleClear">
           清空列表
         </a-button>
       </div>
@@ -73,19 +99,44 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { message } from 'ant-design-vue'
-import { CloudUploadOutlined, UploadOutlined, CheckCircleFilled, CloseCircleFilled } from '@ant-design/icons-vue'
-import { imageApi } from '@/api/image'
+import {
+  CloudUploadOutlined,
+  UploadOutlined,
+  CheckCircleFilled,
+  CloseCircleFilled,
+  LoadingOutlined
+} from '@ant-design/icons-vue'
+import { getToken } from '@/utils/auth'
 
 const fileList = ref([])
 const uploading = ref(false)
-const uploadProgress = ref(0)
-const uploadResults = ref([])
+const uploadingItems = ref([])
+const showResult = ref(false)
 
 const acceptTypes = '.jpg,.jpeg,.png,.webp,.gif,.svg'
 const maxFiles = 20
 const maxFileSize = 10 * 1024 * 1024
+
+const progressColors = {
+  '0%': '#6366f1',
+  '100%': '#8b5cf6'
+}
+
+const completedCount = computed(() => {
+  return uploadingItems.value.filter(item =>
+    item.status === 'success' || item.status === 'error'
+  ).length
+})
+
+const successCount = computed(() => {
+  return uploadingItems.value.filter(item => item.status === 'success').length
+})
+
+const failedCount = computed(() => {
+  return uploadingItems.value.filter(item => item.status === 'error').length
+})
 
 function beforeUpload(file) {
   const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']
@@ -115,8 +166,15 @@ async function handleUpload() {
   }
 
   uploading.value = true
-  uploadProgress.value = 0
-  uploadResults.value = []
+  showResult.value = false
+
+  // 初始化进度列表
+  uploadingItems.value = fileList.value.map(file => ({
+    fileName: file.name,
+    status: 'pending',
+    stepText: '等待处理...',
+    progress: 0
+  }))
 
   const formData = new FormData()
   fileList.value.forEach(file => {
@@ -124,33 +182,115 @@ async function handleUpload() {
   })
 
   try {
-    const res = await imageApi.upload(formData, (progressEvent) => {
-      uploadProgress.value = Math.round((progressEvent.loaded / progressEvent.total) * 100)
+    // 使用 fetch 发送请求并接收 SSE
+    const response = await fetch('/api/images/upload-progress', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${getToken()}`
+      },
+      body: formData
     })
 
-    uploadResults.value = res.data || []
-    const successCount = uploadResults.value.filter(r => r.success).length
-    const failCount = uploadResults.value.filter(r => !r.success).length
-
-    if (successCount > 0) {
-      message.success(`成功上传 ${successCount} 张图片`)
-    }
-    if (failCount > 0) {
-      message.warning(`${failCount} 张图片上传失败`)
+    if (!response.ok) {
+      throw new Error('上传请求失败')
     }
 
-    fileList.value = []
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6))
+            handleProgressEvent(data)
+          } catch (e) {
+            console.error('解析进度数据失败:', e)
+          }
+        }
+      }
+    }
+
+    // 处理最后可能剩余的数据
+    if (buffer.startsWith('data: ')) {
+      try {
+        const data = JSON.parse(buffer.slice(6))
+        handleProgressEvent(data)
+      } catch (e) {
+        // 忽略解析错误
+      }
+    }
+
   } catch (error) {
-    message.error('上传失败')
+    console.error('上传失败:', error)
+    message.error('上传失败: ' + error.message)
   } finally {
     uploading.value = false
-    uploadProgress.value = 0
+    showResult.value = true
+    fileList.value = []
+  }
+}
+
+function handleProgressEvent(data) {
+  switch (data.type) {
+    case 'start':
+      // 开始上传
+      break
+
+    case 'progress':
+      // 更新进度
+      const item = uploadingItems.value[data.fileIndex]
+      if (item) {
+        item.status = 'processing'
+        item.step = data.step
+        item.stepText = data.stepText
+        item.progress = data.progress
+      }
+      break
+
+    case 'complete':
+      // 单个文件完成
+      const completeItem = uploadingItems.value[data.fileIndex]
+      if (completeItem) {
+        completeItem.status = 'success'
+        completeItem.progress = 100
+        completeItem.imageId = data.result?.id
+      }
+      break
+
+    case 'error':
+      // 单个文件失败
+      const errorItem = uploadingItems.value[data.fileIndex]
+      if (errorItem) {
+        errorItem.status = 'error'
+        errorItem.error = data.error
+      }
+      break
+
+    case 'done':
+      // 全部完成
+      if (data.success > 0) {
+        message.success(`成功上传 ${data.success} 张图片`)
+      }
+      if (data.failed > 0) {
+        message.warning(`${data.failed} 张图片上传失败`)
+      }
+      break
   }
 }
 
 function handleClear() {
   fileList.value = []
-  uploadResults.value = []
+  uploadingItems.value = []
+  showResult.value = false
 }
 </script>
 
@@ -231,64 +371,93 @@ function handleClear() {
   margin-bottom: 24px;
   padding: 20px;
   background: #f8fafc;
-  border-radius: 12px;
+  border-radius: 16px;
 }
 
 .progress-header {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 8px;
-  font-size: 14px;
-  color: #64748b;
-}
-
-.results-section {
-  margin-bottom: 24px;
-}
-
-.results-section h4 {
-  font-size: 16px;
-  font-weight: 600;
   margin-bottom: 16px;
+  font-size: 14px;
+  font-weight: 500;
   color: #1e293b;
 }
 
-.results-list {
+.progress-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
-.result-item {
+.progress-item {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.progress-item.processing {
+  border-left: 3px solid #6366f1;
+}
+
+.progress-item.success {
+  border-left: 3px solid #10b981;
+}
+
+.progress-item.error {
+  border-left: 3px solid #ef4444;
+}
+
+.item-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.item-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: 16px;
+}
+
+.item-step {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  border-radius: 10px;
-  font-size: 14px;
+  gap: 6px;
+  font-size: 13px;
+  color: #64748b;
+  flex-shrink: 0;
 }
 
-.result-item.success {
-  background: #f0fdf4;
+.item-step.success {
   color: #10b981;
 }
 
-.result-item.error {
-  background: #fef2f2;
+.item-step.error {
   color: #ef4444;
 }
 
-.result-icon {
-  font-size: 18px;
+.item-step .spinning {
+  animation: spin 1s linear infinite;
 }
 
-.result-name {
-  flex: 1;
-  color: #1e293b;
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
-.result-status {
-  font-size: 13px;
+.item-progress {
+  margin-top: 4px;
+}
+
+.result-summary {
+  margin-bottom: 24px;
 }
 
 .upload-actions {

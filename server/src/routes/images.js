@@ -70,6 +70,17 @@ const upload = multer({
   }
 });
 
+// 内存存储用于进度上传
+const memoryStorage = multer.memoryStorage();
+const uploadMemory = multer({
+  storage: memoryStorage,
+  fileFilter,
+  limits: {
+    fileSize: MAX_FILE_SIZE,
+    files: MAX_FILES
+  }
+});
+
 // 创建缩略图
 async function createThumbnail(filePath, filename) {
   try {
@@ -126,7 +137,194 @@ function enrichImageWithTags(image) {
   return image;
 }
 
-// 批量上传图片
+// SSE 进度上传接口
+router.post('/upload-progress', authenticateToken, uploadMemory.array('images', MAX_FILES), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: '没有上传文件'
+      });
+    }
+
+    // 设置 SSE 响应头
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    const sendProgress = (data) => {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    };
+
+    const totalFiles = req.files.length;
+    const results = [];
+
+    // 发送初始状态
+    sendProgress({ type: 'start', total: totalFiles });
+
+    for (let i = 0; i < req.files.length; i++) {
+      const file = req.files[i];
+      const originalName = decodeFilename(file.originalname);
+      const fileIndex = i;
+
+      try {
+        // 步骤1: 保存文件
+        sendProgress({
+          type: 'progress',
+          fileIndex,
+          fileName: originalName,
+          step: 'saving',
+          stepText: '保存文件中...',
+          progress: 0
+        });
+
+        const yearMonth = new Date().toISOString().slice(0, 7);
+        const dir = path.join(UPLOAD_DIR, yearMonth);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+
+        const ext = path.extname(originalName).toLowerCase();
+        const filename = `${uuidv4()}${ext}`;
+        const filePath = path.join(dir, filename);
+        fs.writeFileSync(filePath, file.buffer);
+
+        // 步骤2: 获取图片尺寸
+        sendProgress({
+          type: 'progress',
+          fileIndex,
+          fileName: originalName,
+          step: 'dimensions',
+          stepText: '获取图片信息...',
+          progress: 20
+        });
+
+        const dimensions = await getImageDimensions(filePath);
+
+        // 步骤3: 创建缩略图
+        sendProgress({
+          type: 'progress',
+          fileIndex,
+          fileName: originalName,
+          step: 'thumbnail',
+          stepText: '生成缩略图...',
+          progress: 30
+        });
+
+        const thumbnailPath = await createThumbnail(filePath, filename);
+
+        // 步骤4: AI 识别
+        sendProgress({
+          type: 'progress',
+          fileIndex,
+          fileName: originalName,
+          step: 'ai',
+          stepText: 'AI 识别中...',
+          progress: 50
+        });
+
+        const aiResult = await processImageWithAI(filePath);
+
+        // 步骤5: 保存到数据库
+        sendProgress({
+          type: 'progress',
+          fileIndex,
+          fileName: originalName,
+          step: 'database',
+          stepText: '保存到数据库...',
+          progress: 80
+        });
+
+        const relativeFilePath = path.relative(UPLOAD_DIR, filePath).replace(/\\/g, '/');
+        const relativeThumbnailPath = thumbnailPath ? path.relative(UPLOAD_DIR, thumbnailPath).replace(/\\/g, '/') : null;
+
+        const imageId = ImageRepository.create({
+          filename,
+          originalName,
+          filePath: relativeFilePath,
+          thumbnailPath: relativeThumbnailPath,
+          fileSize: file.size,
+          fileFormat: ext.slice(1),
+          width: dimensions.width,
+          height: dimensions.height,
+          description: aiResult.description,
+          keywords: JSON.stringify(aiResult.keywords),
+          categoryId: aiResult.categoryId,
+          uploadedBy: req.user.id
+        });
+
+        // 步骤6: 生成向量
+        sendProgress({
+          type: 'progress',
+          fileIndex,
+          fileName: originalName,
+          step: 'vector',
+          stepText: '生成向量...',
+          progress: 90
+        });
+
+        const embedding = await getEmbedding(aiResult.description);
+        await addImageVector(imageId, embedding);
+
+        // 完成
+        results.push({
+          id: imageId,
+          filename,
+          original_name: originalName,
+          success: true
+        });
+
+        sendProgress({
+          type: 'complete',
+          fileIndex,
+          fileName: originalName,
+          progress: 100,
+          result: {
+            id: imageId,
+            success: true
+          }
+        });
+
+        LogRepository.create(req.user.id, 'upload_image', 'image', imageId, `上传图片: ${originalName}`, req.ip);
+
+      } catch (error) {
+        console.error('处理图片失败:', error);
+        results.push({
+          original_name: originalName,
+          success: false,
+          error: error.message
+        });
+
+        sendProgress({
+          type: 'error',
+          fileIndex,
+          fileName: originalName,
+          error: error.message
+        });
+      }
+    }
+
+    // 发送最终结果
+    sendProgress({
+      type: 'done',
+      total: totalFiles,
+      success: results.filter(r => r.success).length,
+      failed: results.filter(r => !r.success).length,
+      results
+    });
+
+    res.end();
+  } catch (error) {
+    console.error('上传图片错误:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || '上传图片失败'
+    });
+  }
+});
+
+// 批量上传图片（保留原接口兼容）
 router.post('/upload', authenticateToken, upload.array('images', MAX_FILES), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
