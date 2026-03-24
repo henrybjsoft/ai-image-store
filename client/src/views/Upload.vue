@@ -191,7 +191,6 @@ function handleClear() {
 
 .uploader {
   border-radius: 16px !important;
-  border: 2px dashed #e2e8f0 !important;
   background: #f8fafc !important;
   transition: all 0.3s ease !important;
 }
