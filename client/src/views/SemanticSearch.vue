@@ -67,7 +67,7 @@
           <span class="query-text" v-if="lastQuery">搜索词："{{ lastQuery }}"</span>
         </div>
         <div class="sort-tip">
-          <ArrowDownOutlined /> 按相似度排序
+          <ArrowDownOutlined /> 按匹配度排序
         </div>
       </div>
 
@@ -91,7 +91,7 @@
             <div class="image-name">{{ item.image.original_name }}</div>
             <div class="image-meta">
               <span class="similarity">
-                <BulbOutlined /> 相似度: {{ (item.similarity * 100).toFixed(2) }}%
+                <BulbOutlined /> 匹配度: {{ (item.similarity * 100).toFixed(2) }}%
               </span>
             </div>
           </div>
@@ -461,6 +461,18 @@ function showPreview(item) {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.similarity-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
 }
 
 /* 空状态 */

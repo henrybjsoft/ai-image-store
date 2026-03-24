@@ -28,7 +28,9 @@
       "Bash(tasklist)",
       "Bash(taskkill /PID 7708 /F)",
       "Bash(taskkill //PID 7708 //F)",
-      "Bash(taskkill //F //IM node.exe)"
+      "Bash(taskkill //F //IM node.exe)",
+      "Bash(curl -s http://localhost:3000/api/auth/me -H \"Authorization: Bearer test\")",
+      "Bash(curl -s http://localhost:5173)"
     ]
   }
 }

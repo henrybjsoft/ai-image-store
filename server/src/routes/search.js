@@ -95,7 +95,9 @@ router.post('/semantic', authenticateToken, async (req, res) => {
     // 获取每张图片的标签和相似度
     for (const image of images) {
       image.tags = ImageRepository.getTags(image.id);
-      image.similarity = similarityMap.get(image.id);
+      // distance 转换回 similarity：similarity = 1 - distance
+      const distance = similarityMap.get(image.id);
+      image.similarity = distance !== undefined ? 1 - distance : 0;
 
       if (image.keywords) {
         try {

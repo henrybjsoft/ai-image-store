@@ -22,11 +22,13 @@ function getDatabase() {
 
           try {
             db.run(sql, paramList);
-            saveDatabase();
 
-            // 获取 lastInsertRowid
+            // 先获取 lastInsertRowid（在 saveDatabase 之前）
             const result = db.exec('SELECT last_insert_rowid() as id');
             const lastInsertRowid = result[0]?.values[0]?.[0] || 0;
+
+            // 再保存数据库
+            saveDatabase();
 
             return { lastInsertRowid, changes: db.getRowsModified() };
           } catch (e) {

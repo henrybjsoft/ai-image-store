@@ -29,7 +29,7 @@
 
         <!-- 相似度（语义搜索场景） -->
         <div class="preview-section" v-if="similarity !== null">
-          <div class="section-label">相似度</div>
+          <div class="section-label">匹配度</div>
           <div class="similarity-bar">
             <div class="similarity-value" :style="{ width: (similarity * 100) + '%' }"></div>
           </div>
