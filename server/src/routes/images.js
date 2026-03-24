@@ -92,10 +92,13 @@ async function createThumbnail(filePath, filename) {
     const thumbnailFilename = `thumb_${path.basename(filename, ext)}.jpg`;
     const thumbnailPath = path.join(THUMBNAIL_DIR, thumbnailFilename);
 
+    const thumbnailSize = parseInt(process.env.THUMBNAIL_SIZE) || 300;
+    const thumbnailQuality = parseInt(process.env.THUMBNAIL_QUALITY) || 80;
+
     await sharp(filePath)
       .rotate() // 根据 EXIF 方向自动旋转
-      .resize(300, 300, { fit: 'inside' })
-      .jpeg({ quality: 80 })
+      .resize(thumbnailSize, thumbnailSize, { fit: 'inside' })
+      .jpeg({ quality: thumbnailQuality })
       .toFile(thumbnailPath);
 
     return thumbnailPath;

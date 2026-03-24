@@ -4,6 +4,8 @@ const https = require('https');
 const { getDatabase } = require('../models/database');
 
 const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY;
+const AI_VISION_MODEL = process.env.AI_VISION_MODEL || 'qwen-vl-plus';
+const AI_EMBEDDING_MODEL = process.env.AI_EMBEDDING_MODEL || 'text-embedding-v3';
 
 // 获取图片的 Base64 编码
 function getImageBase64(imagePath) {
@@ -50,7 +52,7 @@ function httpsPost(hostname, path, body) {
 // 调用通义千问视觉模型
 async function callQwenVL(imageBase64, prompt) {
   const body = {
-    model: 'qwen-vl-plus',
+    model: AI_VISION_MODEL,
     input: {
       messages: [
         {
@@ -69,7 +71,7 @@ async function callQwenVL(imageBase64, prompt) {
 // 调用 Embedding API
 async function callEmbeddingAPI(text) {
   const body = {
-    model: 'text-embedding-v3',
+    model: AI_EMBEDDING_MODEL,
     input: { texts: [text] },
     parameters: { text_type: 'document' }
   };

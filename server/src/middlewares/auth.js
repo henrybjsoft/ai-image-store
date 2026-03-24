@@ -50,7 +50,8 @@ function requireAdmin(req, res, next) {
 }
 
 function generateToken(userId) {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
+  const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
+  return jwt.sign({ userId }, JWT_SECRET, { expiresIn });
 }
 
 module.exports = {
