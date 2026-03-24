@@ -68,13 +68,14 @@
             <MenuUnfoldOutlined v-if="collapsed" />
             <MenuFoldOutlined v-else />
           </div>
+        </div>
 
+        <div class="header-right">
           <!-- 搜索栏 -->
           <div class="search-wrapper">
             <a-input-search
               v-model:value="searchKeyword"
               placeholder="搜索图片..."
-              enter-button
               @search="handleSearch"
               class="search-input"
             >
@@ -83,9 +84,7 @@
               </template>
             </a-input-search>
           </div>
-        </div>
 
-        <div class="header-right">
           <!-- 快捷操作 -->
           <a-button type="primary" class="upload-btn" @click="$router.push('/upload')">
             <UploadOutlined /> 上传
@@ -311,7 +310,6 @@ function handleLogout() {
   background: white;
   padding: 0 24px !important;
   height: 72px !important;
-  line-height: 72px !important;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -324,8 +322,6 @@ function handleLogout() {
 .header-left {
   display: flex;
   align-items: center;
-  gap: 20px;
-  height: 100%;
 }
 
 .collapse-btn {
@@ -346,30 +342,52 @@ function handleLogout() {
   color: #6366f1;
 }
 
-.search-wrapper {
-  width: 320px;
-  flex-shrink: 0;
-}
-
-.search-input {
-  border-radius: 10px;
-}
-
-.search-input :deep(.ant-input) {
-  border-radius: 10px 0 0 10px;
-  height: 40px;
-}
-
-.search-input :deep(.ant-input-search-button) {
-  border-radius: 0 10px 10px 0;
-  height: 40px;
-}
-
 .header-right {
   display: flex;
   align-items: center;
   gap: 16px;
-  height: 100%;
+}
+
+.search-wrapper {
+  width: 280px;
+  display: flex;
+  align-items: center;
+}
+
+.search-input {
+  border-radius: 10px;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+}
+
+.search-input :deep(.ant-input-affix-wrapper) {
+  background: #f1f5f9;
+  border: none;
+  border-radius: 10px;
+  padding: 4px 12px;
+  display: flex;
+  align-items: center;
+}
+
+.search-input :deep(.ant-input) {
+  background: transparent;
+  border: none;
+  height: 32px !important;
+  line-height: 32px !important;
+}
+
+.search-input :deep(.ant-input:focus) {
+  box-shadow: none;
+}
+
+.search-input :deep(.ant-input-affix-wrapper:hover) {
+  background: #e2e8f0;
+}
+
+.search-input :deep(.ant-input-prefix) {
+  color: #94a3b8;
+  margin-right: 8px;
 }
 
 .upload-btn {

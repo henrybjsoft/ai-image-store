@@ -222,8 +222,9 @@
             <a-button type="primary" @click="handleDownload(previewImage)">
               <DownloadOutlined /> 下载
             </a-button>
-            <a-button :loading="reanalyzing" @click="handleReanalyze(previewImage)">
-              <SyncOutlined /> 重新识别
+            <a-button class="reanalyze-btn" :loading="reanalyzing" @click="handleReanalyze(previewImage)">
+              <template #icon><SyncOutlined /></template>
+              重新识别
             </a-button>
             <a-button @click="handleFavorite(previewImage)">
               <HeartFilled v-if="previewImage.is_favorite" style="color: #ef4444" />
@@ -309,6 +310,10 @@ const categoryTree = computed(() => {
 
 onMounted(async () => {
   await Promise.all([loadCategories(), loadTags()])
+  // 读取URL中的keyword参数
+  if (route.query.keyword) {
+    keyword.value = route.query.keyword
+  }
   await loadImages()
 })
 
@@ -490,6 +495,15 @@ async function handleSemanticSearch() {
 
 watch(() => pagination.current, () => loadImages())
 watch(() => pagination.pageSize, () => loadImages())
+
+// 监听URL中keyword参数变化
+watch(() => route.query.keyword, (newKeyword) => {
+  if (newKeyword !== keyword.value) {
+    keyword.value = newKeyword || ''
+    pagination.current = 1
+    loadImages()
+  }
+})
 </script>
 
 <style scoped>
@@ -889,6 +903,10 @@ watch(() => pagination.pageSize, () => loadImages())
   display: flex;
   gap: 12px;
   margin-top: 24px;
+}
+
+.reanalyze-btn {
+  min-width: 104px;
 }
 
 /* 语义搜索 */

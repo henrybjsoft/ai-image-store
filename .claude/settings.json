@@ -10,7 +10,15 @@
       "Bash(findstr \":5173 :3000\")",
       "Bash(powershell -Command \"Stop-Process -Id 40448,28708 -Force\")",
       "Bash(findstr LISTENING)",
-      "Bash(powershell -Command \"Stop-Process -Id 33244 -Force\")"
+      "Bash(powershell -Command \"Stop-Process -Id 33244 -Force\")",
+      "Bash(taskkill /F /PID 35636)",
+      "Bash(taskkill /F /PID 27860)",
+      "Bash(taskkill //F //PID 35636)",
+      "Bash(taskkill //F //PID 27860)",
+      "Bash(node src/app.js)",
+      "Bash(npm run:*)",
+      "Bash(findstr \":5173\")",
+      "Bash(taskkill //F //PID 29500)"
     ]
   }
 }
