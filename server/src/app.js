@@ -13,6 +13,7 @@ const tagRoutes = require('./routes/tags');
 const searchRoutes = require('./routes/search');
 const trashRoutes = require('./routes/trash');
 const logRoutes = require('./routes/logs');
+const systemRoutes = require('./routes/system');
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.use('/api/tags', tagRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/trash', trashRoutes);
 app.use('/api/logs', logRoutes);
+app.use('/api/system', systemRoutes);
 
 // 健康检查
 app.get('/api/health', (req, res) => {

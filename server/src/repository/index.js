@@ -757,6 +757,61 @@ const VectorRepository = {
   }
 };
 
+// ==================== 统计相关操作 ====================
+
+const StatsRepository = {
+  // 获取系统总统计
+  getSystemStats() {
+    const db = getDatabase();
+
+    // 图片总数（不含回收站）
+    const imageCount = db.prepare('SELECT COUNT(*) as count FROM images WHERE is_deleted = 0').get().count;
+
+    // 总字节数
+    const totalBytes = db.prepare('SELECT COALESCE(SUM(file_size), 0) as total FROM images WHERE is_deleted = 0').get().total;
+
+    // 向量数量
+    const vectorCount = db.prepare('SELECT COUNT(*) as count FROM vectors').get().count;
+
+    // 用户数量
+    const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
+
+    // 分类数量
+    const categoryCount = db.prepare('SELECT COUNT(*) as count FROM categories').get().count;
+
+    // 标签数量
+    const tagCount = db.prepare('SELECT COUNT(*) as count FROM tags').get().count;
+
+    return {
+      imageCount,
+      totalBytes,
+      vectorCount,
+      userCount,
+      categoryCount,
+      tagCount
+    };
+  },
+
+  // 获取用户图片数量排名
+  getUserRanking(limit = 10) {
+    const db = getDatabase();
+    return db.prepare(`
+      SELECT
+        u.id,
+        u.username,
+        u.name,
+        u.role,
+        COUNT(i.id) as image_count,
+        COALESCE(SUM(i.file_size), 0) as total_bytes
+      FROM users u
+      LEFT JOIN images i ON u.id = i.uploaded_by AND i.is_deleted = 0
+      GROUP BY u.id
+      ORDER BY image_count DESC
+      LIMIT ?
+    `).all(limit);
+  }
+};
+
 module.exports = {
   UserRepository,
   ImageRepository,
@@ -764,5 +819,6 @@ module.exports = {
   TagRepository,
   LogRepository,
   SearchRepository,
-  VectorRepository
+  VectorRepository,
+  StatsRepository
 };

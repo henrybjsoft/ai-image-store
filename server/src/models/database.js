@@ -14,7 +14,6 @@ function getDatabase() {
     prepare: (sql) => {
       return {
         run: (...params) => {
-          // 处理参数
           let paramList = params;
           if (params.length === 1 && Array.isArray(params[0])) {
             paramList = params[0];
@@ -22,14 +21,9 @@ function getDatabase() {
 
           try {
             db.run(sql, paramList);
-
-            // 先获取 lastInsertRowid（在 saveDatabase 之前）
             const result = db.exec('SELECT last_insert_rowid() as id');
             const lastInsertRowid = result[0]?.values[0]?.[0] || 0;
-
-            // 再保存数据库
             saveDatabase();
-
             return { lastInsertRowid, changes: db.getRowsModified() };
           } catch (e) {
             console.error('SQL run error:', e, sql, paramList);
@@ -82,8 +76,7 @@ function getDatabase() {
     exec: (sql) => {
       db.run(sql);
       saveDatabase();
-    },
-    pragma: () => {} // sql.js 不支持 WAL 模式，忽略
+    }
   };
 }
 
@@ -105,22 +98,31 @@ async function initDatabase() {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
 
-  // 加载或创建数据库
+  // 加载已有数据库或创建新数据库
   if (fs.existsSync(DB_PATH)) {
     const fileBuffer = fs.readFileSync(DB_PATH);
     db = new SQL.Database(fileBuffer);
+    console.log('数据库加载完成');
   } else {
     db = new SQL.Database();
+    console.log('创建新数据库');
   }
 
   const database = getDatabase();
 
-  // 创建用户表
+  // 创建用户表（包含所有字段）
   database.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
+      name TEXT,
+      description TEXT,
+      role TEXT DEFAULT 'user',
+      status INTEGER DEFAULT 1,
+      quota INTEGER DEFAULT 100,
+      valid_from DATE,
+      valid_until DATE,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -137,7 +139,7 @@ async function initDatabase() {
     )
   `);
 
-  // 创建图片表
+  // 创建图片表（包含所有字段）
   database.exec(`
     CREATE TABLE IF NOT EXISTS images (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -151,6 +153,7 @@ async function initDatabase() {
       height INTEGER,
       description TEXT,
       keywords TEXT,
+      extracted_text TEXT,
       category_id INTEGER,
       uploaded_by INTEGER NOT NULL,
       is_favorite INTEGER DEFAULT 0,
@@ -199,67 +202,19 @@ async function initDatabase() {
     )
   `);
 
-  // 添加 extracted_text 列到 images 表（如果不存在）
-  try {
-    const columns = db.exec("PRAGMA table_info(images)");
-    const columnNames = columns[0]?.values?.map(col => col[1]) || [];
-    if (!columnNames.includes('extracted_text')) {
-      database.exec('ALTER TABLE images ADD COLUMN extracted_text TEXT');
-      console.log('已添加 extracted_text 列');
-    }
-  } catch (e) {
-    console.log('添加 extracted_text 列失败或已存在');
-  }
-
-  // 创建向量表
+  // 创建向量表（包含所有字段）
   database.exec(`
     CREATE TABLE IF NOT EXISTS vectors (
       image_id INTEGER PRIMARY KEY,
       embedding TEXT NOT NULL,
+      user_id INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
+      FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id)
     )
   `);
 
-  // 添加向量表 user_id 字段
-  try {
-    const vectorColumns = db.exec("PRAGMA table_info(vectors)");
-    const vectorColumnNames = vectorColumns[0]?.values?.map(col => col[1]) || [];
-    if (!vectorColumnNames.includes('user_id')) {
-      database.exec('ALTER TABLE vectors ADD COLUMN user_id INTEGER REFERENCES users(id)');
-      console.log('已添加 vectors.user_id 列');
-    }
-  } catch (e) {
-    console.log('添加 vectors.user_id 列失败或已存在');
-  }
-
-  // 添加用户表新字段
-  const userColumns = db.exec("PRAGMA table_info(users)");
-  const userColumnNames = userColumns[0]?.values?.map(col => col[1]) || [];
-
-  if (!userColumnNames.includes('name')) {
-    database.exec('ALTER TABLE users ADD COLUMN name TEXT');
-  }
-  if (!userColumnNames.includes('description')) {
-    database.exec('ALTER TABLE users ADD COLUMN description TEXT');
-  }
-  if (!userColumnNames.includes('quota')) {
-    database.exec('ALTER TABLE users ADD COLUMN quota INTEGER DEFAULT 100');
-  }
-  if (!userColumnNames.includes('status')) {
-    database.exec('ALTER TABLE users ADD COLUMN status INTEGER DEFAULT 1');
-  }
-  if (!userColumnNames.includes('valid_from')) {
-    database.exec('ALTER TABLE users ADD COLUMN valid_from DATE');
-  }
-  if (!userColumnNames.includes('valid_until')) {
-    database.exec('ALTER TABLE users ADD COLUMN valid_until DATE');
-  }
-  if (!userColumnNames.includes('role')) {
-    database.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'");
-  }
-
-  // 初始化默认管理员账号
+  // 初始化默认管理员账号（仅当不存在时）
   const adminExists = database.prepare('SELECT id FROM users WHERE username = ?').get('admin');
   if (!adminExists) {
     const passwordHash = await bcrypt.hash('admin123', 10);
@@ -267,29 +222,40 @@ async function initDatabase() {
       "INSERT INTO users (username, password_hash, name, role, status, quota) VALUES (?, ?, ?, 'admin', 1, 0)"
     ).run('admin', passwordHash, '系统管理员');
     console.log('默认管理员账号已创建: admin / admin123');
-  } else {
-    // 确保 admin 用户有正确的 role
-    database.prepare("UPDATE users SET role = 'admin' WHERE username = 'admin' AND (role IS NULL OR role != 'admin')").run();
   }
 
-  // 初始化默认分类
+  // 初始化默认分类（仅当不存在时）
   const categoryCount = database.prepare('SELECT COUNT(*) as count FROM categories').get();
   if (!categoryCount || categoryCount.count === 0) {
-    const defaultCategories = [
-      { name: '风景', parent_id: null },
-      { name: '人物', parent_id: null },
-      { name: '动物', parent_id: null },
-      { name: '建筑', parent_id: null },
-      { name: '美食', parent_id: null },
-      { name: '物品', parent_id: null },
-      { name: '艺术', parent_id: null },
-      { name: '其他', parent_id: null }
+    const categories = [
+      { name: '风景', children: ['自然风光', '城市景观'] },
+      { name: '人物', children: ['肖像', '生活', '工作'] },
+      { name: '动物', children: ['宠物', '野生动物'] },
+      { name: '建筑', children: ['现代建筑', '古典建筑', '室内'] },
+      { name: '美食', children: ['中餐', '西餐', '甜点'] },
+      { name: '物品', children: ['电子产品', '家居', '服饰'] },
+      { name: '艺术', children: ['绘画', '设计', '摄影'] },
+      { name: '其他', children: [] }
     ];
 
-    for (const cat of defaultCategories) {
-      database.prepare('INSERT INTO categories (name, parent_id) VALUES (?, ?)').run(cat.name, cat.parent_id);
+    for (const cat of categories) {
+      const result = database.prepare('INSERT INTO categories (name, parent_id) VALUES (?, NULL)').run(cat.name);
+      const parentId = result.lastInsertRowid;
+      for (const childName of cat.children) {
+        database.prepare('INSERT INTO categories (name, parent_id) VALUES (?, ?)').run(childName, parentId);
+      }
     }
     console.log('默认分类已创建');
+  }
+
+  // 创建上传目录
+  const uploadDir = path.join(__dirname, '../../uploads');
+  const thumbnailDir = path.join(uploadDir, 'thumbnails');
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+  if (!fs.existsSync(thumbnailDir)) {
+    fs.mkdirSync(thumbnailDir, { recursive: true });
   }
 
   console.log('数据库初始化完成');

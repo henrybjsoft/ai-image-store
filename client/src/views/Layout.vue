@@ -218,6 +218,7 @@ const manageMenuItems = computed(() => {
   if (userStore.isAdmin) {
     items.push({ key: 'logs', name: '操作日志', path: '/logs', ...menuIcons.logs })
     items.push({ key: 'users', name: '用户管理', path: '/users', ...menuIcons.users })
+    items.push({ key: 'systemInfo', name: '系统信息', path: '/system-info', ...menuIcons.systemInfo })
   }
 
   return items
@@ -237,7 +238,8 @@ watch(
       Tags: 'tags',
       Trash: 'trash',
       Logs: 'logs',
-      Users: 'users'
+      Users: 'users',
+      SystemInfo: 'systemInfo'
     }
     selectedKeys.value = [keyMap[name] || 'dashboard']
   },
