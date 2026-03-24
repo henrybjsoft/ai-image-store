@@ -1,11 +1,12 @@
 <template>
-  <a-layout class="layout-container">
+  <a-layout class="layout-container" :class="{ 'sidebar-collapsed': collapsed }">
     <!-- 侧边栏 -->
     <a-layout-sider
       v-model:collapsed="collapsed"
       :trigger="null"
       collapsible
       :width="260"
+      :collapsed-width="80"
       class="sidebar"
     >
       <!-- Logo -->
@@ -213,8 +214,36 @@ function handleLogout() {
 
 /* 侧边栏样式 */
 .sidebar {
+  position: fixed !important;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  height: 100vh !important;
   background: linear-gradient(180deg, #1e1b4b 0%, #312e81 100%) !important;
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
+  z-index: 200;
+}
+
+.sidebar :deep(.ant-layout-sider-children) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.menu-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px 12px;
+}
+
+.menu-wrapper::-webkit-scrollbar {
+  width: 4px;
+}
+
+.menu-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
 }
 
 .logo-wrapper {
@@ -246,10 +275,6 @@ function handleLogout() {
   font-size: 18px;
   font-weight: 700;
   white-space: nowrap;
-}
-
-.menu-wrapper {
-  padding: 16px 12px;
 }
 
 .menu-section {
@@ -317,6 +342,12 @@ function handleLogout() {
   position: sticky;
   top: 0;
   z-index: 100;
+  margin-left: 260px;
+  transition: margin-left 0.2s ease;
+}
+
+.sidebar-collapsed .layout-header {
+  margin-left: 80px;
 }
 
 .header-left {
@@ -435,6 +466,12 @@ function handleLogout() {
 .layout-content {
   padding: 24px;
   min-height: calc(100vh - 72px);
+  margin-left: 260px;
+  transition: margin-left 0.2s ease;
+}
+
+.sidebar-collapsed .layout-content {
+  margin-left: 80px;
 }
 
 /* 动画 */
