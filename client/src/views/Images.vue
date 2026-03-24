@@ -188,6 +188,19 @@
       <div class="preview-container" v-if="previewImage">
         <div class="preview-image">
           <img :src="getImageUrl(previewImage, true)" />
+          <div class="image-actions">
+            <a-tooltip :title="previewImage.is_favorite ? '取消收藏' : '收藏'">
+              <div class="image-action-btn" :class="{ favorited: previewImage.is_favorite }" @click="handleFavorite(previewImage)">
+                <HeartFilled v-if="previewImage.is_favorite" />
+                <HeartOutlined v-else />
+              </div>
+            </a-tooltip>
+            <a-tooltip title="删除">
+              <div class="image-action-btn delete" @click="handleDeleteFromPreview(previewImage)">
+                <DeleteOutlined />
+              </div>
+            </a-tooltip>
+          </div>
         </div>
         <div class="preview-sidebar">
           <h3>{{ previewImage.original_name }}</h3>
@@ -242,15 +255,6 @@
               <template #icon><SyncOutlined /></template>
               重新识别
             </a-button>
-            <a-tooltip :title="previewImage.is_favorite ? '取消收藏' : '收藏'">
-              <a-button :class="['favorite-btn', { favorited: previewImage.is_favorite }]" @click="handleFavorite(previewImage)">
-                <HeartFilled v-if="previewImage.is_favorite" />
-                <HeartOutlined v-else />
-              </a-button>
-            </a-tooltip>
-            <a-button danger @click="handleDeleteFromPreview(previewImage)">
-                <DeleteOutlined /> 删除
-              </a-button>
           </div>
         </div>
       </div>
@@ -921,6 +925,7 @@ watch(() => route.query.keyword, (newKeyword) => {
   align-items: center;
   justify-content: center;
   padding: 24px;
+  position: relative;
 }
 
 .preview-image img {
@@ -928,6 +933,51 @@ watch(() => route.query.keyword, (newKeyword) => {
   max-height: 70vh;
   object-fit: contain;
   border-radius: 8px;
+}
+
+.image-actions {
+  position: absolute;
+  bottom: 40px;
+  right: 40px;
+  display: flex;
+  gap: 12px;
+}
+
+.image-action-btn {
+  width: 44px;
+  height: 44px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #64748b;
+  font-size: 18px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.image-action-btn:hover {
+  background: white;
+  transform: scale(1.1);
+}
+
+.image-action-btn.favorited {
+  color: #ef4444;
+}
+
+.image-action-btn.favorited:hover {
+  background: #fee2e2;
+}
+
+.image-action-btn.delete {
+  color: #ef4444;
+}
+
+.image-action-btn.delete:hover {
+  background: #fee2e2;
+  color: #dc2626;
 }
 
 .preview-sidebar {
@@ -1004,24 +1054,6 @@ watch(() => route.query.keyword, (newKeyword) => {
 
 .reanalyze-btn {
   min-width: 104px;
-}
-
-.favorite-btn {
-  width: 40px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.favorite-btn.favorited {
-  color: #ef4444;
-  border-color: #ef4444;
-}
-
-.favorite-btn.favorited:hover {
-  color: #dc2626;
-  border-color: #dc2626;
 }
 
 /* 语义搜索 */
