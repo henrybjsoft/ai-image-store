@@ -37,6 +37,14 @@
       </div>
 
       <div class="filter-right">
+        <a-checkbox
+          :checked="isAllSelected"
+          :indeterminate="isIndeterminate"
+          @change="handleSelectAll"
+          class="select-all-checkbox"
+        >
+          全选
+        </a-checkbox>
         <div class="view-toggle">
           <div
             class="toggle-btn"
@@ -302,6 +310,24 @@ const previewImage = ref(null)
 const showSemanticSearch = ref(false)
 const semanticQuery = ref('')
 const reanalyzing = ref(false)
+
+// 全选相关计算属性
+const isAllSelected = computed(() => {
+  return images.value.length > 0 && selectedIds.value.length === images.value.length
+})
+
+const isIndeterminate = computed(() => {
+  return selectedIds.value.length > 0 && selectedIds.value.length < images.value.length
+})
+
+// 全选/取消全选
+function handleSelectAll(e) {
+  if (e.target.checked) {
+    selectedIds.value = images.value.map(img => img.id)
+  } else {
+    selectedIds.value = []
+  }
+}
 
 const pagination = reactive({
   current: 1,
@@ -601,6 +627,12 @@ watch(() => route.query.keyword, (newKeyword) => {
   gap: 12px;
 }
 
+.select-all-checkbox {
+  margin-right: 8px;
+  color: #64748b;
+  font-weight: 500;
+}
+
 .view-toggle {
   display: flex;
   background: #f1f5f9;
@@ -663,10 +695,20 @@ watch(() => route.query.keyword, (newKeyword) => {
   top: 12px;
   left: 12px;
   z-index: 10;
-  padding: 4px;
-  background: white;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.image-checkbox :deep(.ant-checkbox-wrapper) {
+  color: white;
+}
+
+.image-checkbox :deep(.ant-checkbox-inner) {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.image-checkbox :deep(.ant-checkbox-checked .ant-checkbox-inner) {
+  background: #6366f1;
+  border-color: #6366f1;
 }
 
 .image-wrapper {
