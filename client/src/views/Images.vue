@@ -99,9 +99,6 @@
         class="image-card"
         :class="{ selected: selectedIds.includes(image.id) }"
       >
-        <div class="image-checkbox" @click.stop="toggleSelect(image.id)">
-          <a-checkbox :checked="selectedIds.includes(image.id)" />
-        </div>
         <div class="image-wrapper" @click="handlePreview(image)">
           <img :src="getImageUrl(image)" :alt="image.original_name" />
           <div class="image-overlay">
@@ -118,12 +115,18 @@
               </div>
             </div>
           </div>
+          <div class="selected-badge" v-if="selectedIds.includes(image.id)">
+            <CheckOutlined />
+          </div>
         </div>
-        <div class="image-info">
-          <div class="image-name" :title="image.original_name">{{ image.original_name }}</div>
-          <div class="image-meta">
-            <span class="category-badge" v-if="image.category_name">{{ image.category_name }}</span>
-            <span class="size">{{ formatSize(image.file_size) }}</span>
+        <div class="image-info" @click.stop="toggleSelect(image.id)">
+          <a-checkbox :checked="selectedIds.includes(image.id)" class="info-checkbox" />
+          <div class="info-text">
+            <div class="image-name" :title="image.original_name">{{ image.original_name }}</div>
+            <div class="image-meta">
+              <span class="category-badge" v-if="image.category_name">{{ image.category_name }}</span>
+              <span class="size">{{ formatSize(image.file_size) }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -215,7 +218,8 @@ import {
   DownloadOutlined,
   DeleteOutlined,
   SearchOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  CheckOutlined
 } from '@ant-design/icons-vue'
 import { imageApi } from '@/api/image'
 import { categoryApi } from '@/api/category'
@@ -636,25 +640,20 @@ watch(() => route.query.keyword, (newKeyword) => {
   border-color: #6366f1;
 }
 
-.image-checkbox {
+.selected-badge {
   position: absolute;
   top: 12px;
   left: 12px;
-  z-index: 10;
-}
-
-.image-checkbox :deep(.ant-checkbox-wrapper) {
-  color: white;
-}
-
-.image-checkbox :deep(.ant-checkbox-inner) {
-  background: rgba(255, 255, 255, 0.3);
-  border-color: rgba(255, 255, 255, 0.5);
-}
-
-.image-checkbox :deep(.ant-checkbox-checked .ant-checkbox-inner) {
+  width: 28px;
+  height: 28px;
   background: #6366f1;
-  border-color: #6366f1;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 14px;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
 }
 
 .image-wrapper {
@@ -727,7 +726,36 @@ watch(() => route.query.keyword, (newKeyword) => {
 }
 
 .image-info {
-  padding: 16px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  border-top: 1px solid #f1f5f9;
+}
+
+.image-info:hover {
+  background: #f8fafc;
+}
+
+.image-card.selected .image-info {
+  background: #eef2ff;
+}
+
+.info-checkbox {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.info-checkbox :deep(.ant-checkbox-checked .ant-checkbox-inner) {
+  background-color: #6366f1;
+  border-color: #6366f1;
+}
+
+.info-text {
+  flex: 1;
+  min-width: 0;
 }
 
 .image-name {
@@ -737,7 +765,7 @@ watch(() => route.query.keyword, (newKeyword) => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .image-meta {
