@@ -1,8 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const { getDatabase } = require('../models/database');
+const { UserRepository, LogRepository } = require('../repository');
 const { authenticateToken } = require('../middlewares/auth');
-const { logAction } = require('../services/logService');
 
 const router = express.Router();
 
@@ -12,8 +11,7 @@ router.use(authenticateToken);
 // 获取用户列表
 router.get('/', (req, res) => {
   try {
-    const db = getDatabase();
-    const users = db.prepare('SELECT id, username, created_at, updated_at FROM users ORDER BY id').all();
+    const users = UserRepository.findAll();
 
     res.json({
       success: true,
@@ -54,11 +52,8 @@ router.post('/', async (req, res) => {
       });
     }
 
-    const db = getDatabase();
-
     // 检查用户名是否已存在
-    const existingUser = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
-    if (existingUser) {
+    if (UserRepository.isUsernameTaken(username)) {
       return res.status(400).json({
         success: false,
         message: '用户名已存在'
@@ -66,17 +61,14 @@ router.post('/', async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const result = db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)').run(username, passwordHash);
+    const user = UserRepository.create(username, passwordHash);
 
-    await logAction(req.user.id, 'create_user', 'user', result.lastInsertRowid, `创建用户: ${username}`, req.ip);
+    LogRepository.create(req.user.id, 'create_user', 'user', user.id, `创建用户: ${username}`, req.ip);
 
     res.json({
       success: true,
       message: '用户创建成功',
-      data: {
-        id: result.lastInsertRowid,
-        username
-      }
+      data: user
     });
   } catch (error) {
     console.error('创建用户错误:', error);
@@ -100,10 +92,8 @@ router.put('/:id', async (req, res) => {
       });
     }
 
-    const db = getDatabase();
-
     // 检查用户是否存在
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+    const user = UserRepository.findById(id);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -112,17 +102,16 @@ router.put('/:id', async (req, res) => {
     }
 
     // 检查用户名是否被其他用户占用
-    const existingUser = db.prepare('SELECT id FROM users WHERE username = ? AND id != ?').get(username, id);
-    if (existingUser) {
+    if (UserRepository.isUsernameTaken(username, id)) {
       return res.status(400).json({
         success: false,
         message: '用户名已被使用'
       });
     }
 
-    db.prepare('UPDATE users SET username = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(username, id);
+    UserRepository.updateUsername(id, username);
 
-    await logAction(req.user.id, 'update_user', 'user', id, `更新用户名: ${username}`, req.ip);
+    LogRepository.create(req.user.id, 'update_user', 'user', id, `更新用户名: ${username}`, req.ip);
 
     res.json({
       success: true,
@@ -150,10 +139,8 @@ router.put('/:id/password', async (req, res) => {
       });
     }
 
-    const db = getDatabase();
-
     // 检查用户是否存在
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+    const user = UserRepository.findById(id);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -162,9 +149,9 @@ router.put('/:id/password', async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    db.prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(passwordHash, id);
+    UserRepository.updatePassword(id, passwordHash);
 
-    await logAction(req.user.id, 'change_password', 'user', id, `修改用户密码: ${user.username}`, req.ip);
+    LogRepository.create(req.user.id, 'change_password', 'user', id, `修改用户密码: ${user.username}`, req.ip);
 
     res.json({
       success: true,
@@ -192,8 +179,7 @@ router.delete('/:id', async (req, res) => {
       });
     }
 
-    const db = getDatabase();
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+    const user = UserRepository.findById(id);
 
     if (!user) {
       return res.status(404).json({
@@ -202,9 +188,9 @@ router.delete('/:id', async (req, res) => {
       });
     }
 
-    db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    UserRepository.delete(id);
 
-    await logAction(req.user.id, 'delete_user', 'user', id, `删除用户: ${user.username}`, req.ip);
+    LogRepository.create(req.user.id, 'delete_user', 'user', id, `删除用户: ${user.username}`, req.ip);
 
     res.json({
       success: true,

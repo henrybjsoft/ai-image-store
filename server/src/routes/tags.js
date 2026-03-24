@@ -1,22 +1,13 @@
 const express = require('express');
-const { getDatabase } = require('../models/database');
+const { TagRepository, LogRepository } = require('../repository');
 const { authenticateToken } = require('../middlewares/auth');
-const { logAction } = require('../services/logService');
 
 const router = express.Router();
 
 // 获取所有标签（公开）
 router.get('/', (req, res) => {
   try {
-    const db = getDatabase();
-    const tags = db.prepare(`
-      SELECT t.*, COUNT(it.image_id) as image_count
-      FROM tags t
-      LEFT JOIN image_tags it ON t.id = it.tag_id
-      LEFT JOIN images i ON it.image_id = i.id AND i.is_deleted = 0
-      GROUP BY t.id
-      ORDER BY t.name
-    `).all();
+    const tags = TagRepository.findAll();
 
     res.json({
       success: true,
@@ -46,28 +37,22 @@ router.post('/', async (req, res) => {
       });
     }
 
-    const db = getDatabase();
-
     // 检查标签是否已存在
-    const existingTag = db.prepare('SELECT * FROM tags WHERE name = ?').get(name.trim());
-    if (existingTag) {
+    if (TagRepository.findByName(name.trim())) {
       return res.status(400).json({
         success: false,
         message: '标签已存在'
       });
     }
 
-    const result = db.prepare('INSERT INTO tags (name) VALUES (?)').run(name.trim());
+    const tag = TagRepository.create(name.trim());
 
-    await logAction(req.user.id, 'create_tag', 'tag', result.lastInsertRowid, `创建标签: ${name}`, req.ip);
+    LogRepository.create(req.user.id, 'create_tag', 'tag', tag.id, `创建标签: ${name}`, req.ip);
 
     res.json({
       success: true,
       message: '标签创建成功',
-      data: {
-        id: result.lastInsertRowid,
-        name: name.trim()
-      }
+      data: tag
     });
   } catch (error) {
     console.error('创建标签错误:', error);
@@ -91,8 +76,7 @@ router.put('/:id', async (req, res) => {
       });
     }
 
-    const db = getDatabase();
-    const tag = db.prepare('SELECT * FROM tags WHERE id = ?').get(id);
+    const tag = TagRepository.findById(id);
 
     if (!tag) {
       return res.status(404).json({
@@ -102,17 +86,16 @@ router.put('/:id', async (req, res) => {
     }
 
     // 检查标签名是否被占用
-    const existingTag = db.prepare('SELECT * FROM tags WHERE name = ? AND id != ?').get(name.trim(), id);
-    if (existingTag) {
+    if (TagRepository.isNameTaken(name.trim(), id)) {
       return res.status(400).json({
         success: false,
         message: '标签名已被使用'
       });
     }
 
-    db.prepare('UPDATE tags SET name = ? WHERE id = ?').run(name.trim(), id);
+    TagRepository.update(id, name.trim());
 
-    await logAction(req.user.id, 'update_tag', 'tag', id, `更新标签: ${tag.name} -> ${name}`, req.ip);
+    LogRepository.create(req.user.id, 'update_tag', 'tag', id, `更新标签: ${tag.name} -> ${name}`, req.ip);
 
     res.json({
       success: true,
@@ -131,9 +114,8 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const db = getDatabase();
 
-    const tag = db.prepare('SELECT * FROM tags WHERE id = ?').get(id);
+    const tag = TagRepository.findById(id);
     if (!tag) {
       return res.status(404).json({
         success: false,
@@ -141,12 +123,9 @@ router.delete('/:id', async (req, res) => {
       });
     }
 
-    // 删除图片标签关联
-    db.prepare('DELETE FROM image_tags WHERE tag_id = ?').run(id);
-    // 删除标签
-    db.prepare('DELETE FROM tags WHERE id = ?').run(id);
+    TagRepository.delete(id);
 
-    await logAction(req.user.id, 'delete_tag', 'tag', id, `删除标签: ${tag.name}`, req.ip);
+    LogRepository.create(req.user.id, 'delete_tag', 'tag', id, `删除标签: ${tag.name}`, req.ip);
 
     res.json({
       success: true,

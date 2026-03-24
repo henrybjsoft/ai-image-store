@@ -1,8 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const { getDatabase } = require('../models/database');
+const { UserRepository, LogRepository } = require('../repository');
 const { authenticateToken, generateToken } = require('../middlewares/auth');
-const { logAction } = require('../services/logService');
 
 const router = express.Router();
 
@@ -18,8 +17,7 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    const db = getDatabase();
-    const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+    const user = UserRepository.findByUsername(username);
 
     if (!user) {
       return res.status(401).json({
@@ -39,7 +37,7 @@ router.post('/login', async (req, res) => {
     const token = generateToken(user.id);
 
     // 记录登录日志
-    await logAction(user.id, 'login', 'user', user.id, '用户登录', req.ip);
+    LogRepository.create(user.id, 'login', 'user', user.id, '用户登录', req.ip);
 
     res.json({
       success: true,
@@ -63,7 +61,7 @@ router.post('/login', async (req, res) => {
 // 登出
 router.post('/logout', authenticateToken, async (req, res) => {
   try {
-    await logAction(req.user.id, 'logout', 'user', req.user.id, '用户登出', req.ip);
+    LogRepository.create(req.user.id, 'logout', 'user', req.user.id, '用户登出', req.ip);
     res.json({
       success: true,
       message: '登出成功'

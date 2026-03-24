@@ -1,10 +1,26 @@
 const express = require('express');
-const { getDatabase } = require('../models/database');
+const { SearchRepository, ImageRepository, TagRepository } = require('../repository');
 const { authenticateToken } = require('../middlewares/auth');
 const { getEmbedding } = require('../services/aiService');
 const { searchSimilar } = require('../services/vectorService');
 
 const router = express.Router();
+
+// 辅助函数：为图片添加标签信息
+function enrichImagesWithTags(images) {
+  for (const image of images) {
+    image.tags = ImageRepository.getTags(image.id);
+
+    if (image.keywords) {
+      try {
+        image.keywords = JSON.parse(image.keywords);
+      } catch (e) {
+        image.keywords = [];
+      }
+    }
+  }
+  return images;
+}
 
 // 关键字搜索
 router.get('/keyword', authenticateToken, (req, res) => {
@@ -18,56 +34,14 @@ router.get('/keyword', authenticateToken, (req, res) => {
       });
     }
 
-    const db = getDatabase();
-    const keyword = `%${q.trim()}%`;
+    const result = SearchRepository.searchByKeyword(q.trim(), { page, pageSize });
 
-    // 计算总数
-    const totalResult = db.prepare(`
-      SELECT COUNT(*) as total
-      FROM images
-      WHERE is_deleted = 0
-      AND (original_name LIKE ? OR description LIKE ? OR keywords LIKE ?)
-    `).get(keyword, keyword, keyword);
-
-    const total = totalResult.total;
-    const offset = (parseInt(page) - 1) * parseInt(pageSize);
-
-    // 搜索结果
-    const images = db.prepare(`
-      SELECT i.*, c.name as category_name, u.username as uploader_name
-      FROM images i
-      LEFT JOIN categories c ON i.category_id = c.id
-      LEFT JOIN users u ON i.uploaded_by = u.id
-      WHERE i.is_deleted = 0
-      AND (i.original_name LIKE ? OR i.description LIKE ? OR i.keywords LIKE ?)
-      ORDER BY i.created_at DESC
-      LIMIT ? OFFSET ?
-    `).all(keyword, keyword, keyword, parseInt(pageSize), offset);
-
-    // 获取每张图片的标签
-    for (const image of images) {
-      image.tags = db.prepare(`
-        SELECT t.* FROM tags t
-        JOIN image_tags it ON t.id = it.tag_id
-        WHERE it.image_id = ?
-      `).all(image.id);
-
-      if (image.keywords) {
-        try {
-          image.keywords = JSON.parse(image.keywords);
-        } catch (e) {
-          image.keywords = [];
-        }
-      }
-    }
+    enrichImagesWithTags(result.list);
 
     res.json({
       success: true,
       data: {
-        list: images,
-        total,
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
+        ...result,
         keyword: q
       }
     });
@@ -111,24 +85,11 @@ router.post('/semantic', authenticateToken, async (req, res) => {
       });
     }
 
-    const db = getDatabase();
     const imageIds = similarities.map(s => s.imageId);
-
-    // 获取图片详情
-    const placeholders = imageIds.map(() => '?').join(',');
-    let images = db.prepare(`
-      SELECT i.*, c.name as category_name, u.username as uploader_name
-      FROM images i
-      LEFT JOIN categories c ON i.category_id = c.id
-      LEFT JOIN users u ON i.uploaded_by = u.id
-      WHERE i.id IN (${placeholders}) AND i.is_deleted = 0
-    `).all(...imageIds);
-
-    // 按相似度排序
     const similarityMap = new Map(similarities.map(s => [s.imageId, s.distance]));
-    images.sort((a, b) => {
-      return (similarityMap.get(a.id) || Infinity) - (similarityMap.get(b.id) || Infinity);
-    });
+
+    // 获取图片详情并按相似度排序
+    let images = SearchRepository.findByIdsSorted(imageIds, similarityMap);
 
     // 分页
     const total = images.length;
@@ -137,12 +98,7 @@ router.post('/semantic', authenticateToken, async (req, res) => {
 
     // 获取每张图片的标签和相似度
     for (const image of images) {
-      image.tags = db.prepare(`
-        SELECT t.* FROM tags t
-        JOIN image_tags it ON t.id = it.tag_id
-        WHERE it.image_id = ?
-      `).all(image.id);
-
+      image.tags = ImageRepository.getTags(image.id);
       image.similarity = similarityMap.get(image.id);
 
       if (image.keywords) {
@@ -185,55 +141,14 @@ router.get('/by-tag', authenticateToken, (req, res) => {
       });
     }
 
-    const db = getDatabase();
+    const result = TagRepository.findByTag(tagId, { page, pageSize });
 
-    // 计算总数
-    const totalResult = db.prepare(`
-      SELECT COUNT(*) as total
-      FROM images i
-      JOIN image_tags it ON i.id = it.image_id
-      WHERE i.is_deleted = 0 AND it.tag_id = ?
-    `).get(tagId);
-
-    const total = totalResult.total;
-    const offset = (parseInt(page) - 1) * parseInt(pageSize);
-
-    // 获取图片
-    const images = db.prepare(`
-      SELECT i.*, c.name as category_name, u.username as uploader_name
-      FROM images i
-      JOIN image_tags it ON i.id = it.image_id
-      LEFT JOIN categories c ON i.category_id = c.id
-      LEFT JOIN users u ON i.uploaded_by = u.id
-      WHERE i.is_deleted = 0 AND it.tag_id = ?
-      ORDER BY i.created_at DESC
-      LIMIT ? OFFSET ?
-    `).all(tagId, parseInt(pageSize), offset);
-
-    // 获取每张图片的标签
-    for (const image of images) {
-      image.tags = db.prepare(`
-        SELECT t.* FROM tags t
-        JOIN image_tags it ON t.id = it.tag_id
-        WHERE it.image_id = ?
-      `).all(image.id);
-
-      if (image.keywords) {
-        try {
-          image.keywords = JSON.parse(image.keywords);
-        } catch (e) {
-          image.keywords = [];
-        }
-      }
-    }
+    enrichImagesWithTags(result.list);
 
     res.json({
       success: true,
       data: {
-        list: images,
-        total,
-        page: parseInt(page),
-        pageSize: parseInt(pageSize),
+        ...result,
         tagId
       }
     });

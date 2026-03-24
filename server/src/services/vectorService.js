@@ -1,5 +1,7 @@
 const path = require('path');
 const fs = require('fs');
+const { ImageRepository } = require('../repository');
+const { getEmbedding } = require('./aiService');
 
 const DATA_DIR = path.join(__dirname, '../../data');
 const VECTOR_FILE = path.join(DATA_DIR, 'vectors.json');
@@ -108,11 +110,7 @@ function getVectorByImageId(imageId) {
 
 // 重建索引（从数据库恢复）
 async function rebuildIndex() {
-  const { getDatabase } = require('../models/database');
-  const { getEmbedding } = require('./aiService');
-
-  const db = getDatabase();
-  const images = db.prepare('SELECT id, description FROM images WHERE is_deleted = 0').all();
+  const images = ImageRepository.findAllDescriptions();
 
   // 清空现有索引
   const vectors = {};

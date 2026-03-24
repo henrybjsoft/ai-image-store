@@ -1,5 +1,5 @@
 const express = require('express');
-const { getLogs, getLogCount } = require('../services/logService');
+const { LogRepository } = require('../repository');
 const { authenticateToken } = require('../middlewares/auth');
 
 const router = express.Router();
@@ -22,8 +22,8 @@ router.get('/', (req, res) => {
     filters.limit = parseInt(pageSize);
     filters.offset = offset;
 
-    const logs = getLogs(filters);
-    const total = getLogCount(filters);
+    const logs = LogRepository.findList(filters);
+    const total = LogRepository.count(filters);
 
     res.json({
       success: true,
