@@ -83,13 +83,13 @@ function matchCategory(keywords, description) {
   const text = (keywords.join(' ') + ' ' + description).toLowerCase();
 
   const categoryKeywords = {
-    '风景': ['风景', '自然', '山水', '天空', '日落', '日出', '海洋', '森林', '山', '河', '湖', '花', '草地', '沙漠', '海滩', '雪', '云'],
-    '人物': ['人物', '人', '脸', '男人', '女人', '孩子', '儿童', '模特', '肖像', '团队', '人群', '肖像照', '自拍'],
-    '动物': ['动物', '猫', '狗', '鸟', '鱼', '宠物', '野生动物', '昆虫', '马', '兔', '老虎', '狮子', '熊猫'],
-    '建筑': ['建筑', '房子', '楼', '城市', '街道', '桥梁', '室内', '房间', '办公室', '博物馆', '教堂', '塔', '城堡'],
-    '美食': ['美食', '食物', '餐', '水果', '蔬菜', '饮料', '咖啡', '蛋糕', '面包', '甜点', '餐厅', '料理'],
-    '物品': ['物品', '产品', '商品', '工具', '家具', '电子', '车', '衣服', '包', '鞋', '手机', '电脑', '玩具'],
-    '艺术': ['艺术', '绘画', '雕塑', '设计', '创意', '插画', '抽象', '图形', '纹理', '背景', '卡通', '动漫'],
+    '风景': ['风景', '自然', '山水', '天空', '日落', '日出', '海洋', '森林', '山', '河', '湖', '花', '草地', '沙漠', '海滩', '雪', '云', '星空', '极光', '瀑布', '峡谷', '田野', '花园', '公园', '蓝天', '夕阳', '晨光', '自然风光', '户外'],
+    '人物': ['人物', '人', '脸', '男人', '女人', '孩子', '儿童', '模特', '肖像', '团队', '人群', '肖像照', '自拍', '家庭', '情侣', '朋友', '老人', '青年', '少女', '男孩', '女孩', '微笑', '表情', '姿势'],
+    '动物': ['动物', '猫', '狗', '鸟', '鱼', '宠物', '野生动物', '昆虫', '马', '兔', '老虎', '狮子', '熊猫', '蝴蝶', '蜜蜂', '海豚', '鲸鱼', '大象', '猴子', '松鼠', '鸽子', '天鹅', '小动物', '萌宠'],
+    '建筑': ['建筑', '房子', '楼', '城市', '街道', '桥梁', '室内', '房间', '办公室', '博物馆', '教堂', '塔', '城堡', '摩天大楼', '住宅', '商场', '酒店', '学校', '医院', '现代建筑', '古典建筑', '建筑风格', '城市景观', '夜景'],
+    '美食': ['美食', '食物', '餐', '水果', '蔬菜', '饮料', '咖啡', '蛋糕', '面包', '甜点', '餐厅', '料理', '海鲜', '肉类', '披萨', '汉堡', '寿司', '中餐', '西餐', '饮品', '茶', '酒', '冰淇淋', '巧克力'],
+    '物品': ['物品', '产品', '商品', '工具', '家具', '电子', '车', '衣服', '包', '鞋', '手机', '电脑', '玩具', '书籍', '文具', '钟表', '眼镜', '珠宝', '化妆品', '家居', '装饰', '日用品', '办公用品'],
+    '艺术': ['艺术', '绘画', '雕塑', '设计', '创意', '插画', '抽象', '图形', '纹理', '背景', '卡通', '动漫', '油画', '水彩', '素描', '摄影艺术', '数字艺术', '海报', '字体', '图案', '色彩', '视觉效果'],
     '其他': []
   };
 
@@ -117,7 +117,8 @@ async function processImageWithAI(imagePath) {
   const defaultResult = {
     description: '图片素材',
     keywords: ['图片', '素材'],
-    categoryId: null
+    categoryId: null,
+    extractedText: ''
   };
 
   try {
@@ -126,7 +127,29 @@ async function processImageWithAI(imagePath) {
     }
 
     const imageBase64 = getImageBase64(imagePath);
-    const prompt = '请分析这张图片，用一句话描述图片内容（不超过50字），并列出3-5个关键词。直接返回结果，格式：描述：xxx 关键词：xxx,xxx,xxx';
+    const prompt = `请详细分析这张图片，提供以下信息：
+
+1. 详细描述：请用2-4句话详细描述图片的内容，包括：
+   - 图片的主体内容是什么
+   - 场景、环境、背景特点
+   - 色彩、构图、风格特点
+   - 图片传达的情感或氛围
+
+2. 关键词：请列出8-15个关键词，包括：
+   - 主体对象（人物、物品、动物等）
+   - 场景环境（室内、室外、自然景观等）
+   - 风格特点（现代、复古、简约等）
+   - 色彩特点（暖色调、冷色调、鲜艳等）
+   - 情感氛围（温馨、活力、宁静等）
+
+3. 图片文字：请识别并提取图片中所有的文字内容，包括：
+   - 标题、标语、品牌名称
+   - 说明文字、注释
+   - 水印、logo中的文字
+   如果图片中没有文字，请返回空字符串
+
+请严格按照以下JSON格式返回：
+{"description": "详细描述内容", "keywords": ["关键词1", "关键词2", "关键词3"], "text": "图片中的文字内容，没有则为空字符串"}`;
 
     console.log('调用 AI 识别图片...');
     const response = await callQwenVL(imageBase64, prompt);
@@ -155,25 +178,42 @@ async function processImageWithAI(imagePath) {
 
     console.log('AI 返回内容:', content);
 
-    // 解析描述和关键词
+    // 解析描述、关键词和文字
     let description = '';
     let keywords = [];
+    let extractedText = '';
 
-    // 尝试匹配描述
-    const descMatch = content.match(/描述[：:]\s*(.+?)(?=关键词|$)/s);
-    if (descMatch) {
-      description = descMatch[1].trim();
+    // 尝试解析JSON格式
+    const jsonMatch = content.match(/\{[\s\S]*"description"[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const jsonResult = JSON.parse(jsonMatch[0]);
+        description = jsonResult.description || '';
+        keywords = jsonResult.keywords || [];
+        extractedText = jsonResult.text || '';
+      } catch (e) {
+        console.log('JSON解析失败，尝试其他格式');
+      }
     }
 
-    // 尝试匹配关键词
-    const keywordsMatch = content.match(/关键词[：:]\s*(.+?)(?=$)/s);
-    if (keywordsMatch) {
-      keywords = keywordsMatch[1].split(/[,，、\s]+/).filter(k => k.trim()).map(k => k.trim());
+    // 如果JSON解析失败，尝试原有格式
+    if (!description) {
+      const descMatch = content.match(/描述[：:]\s*(.+?)(?=关键词|$)/s);
+      if (descMatch) {
+        description = descMatch[1].trim();
+      }
+    }
+
+    if (keywords.length === 0) {
+      const keywordsMatch = content.match(/关键词[：:]\s*(.+?)(?=$)/s);
+      if (keywordsMatch) {
+        keywords = keywordsMatch[1].split(/[,，、\s]+/).filter(k => k.trim()).map(k => k.trim());
+      }
     }
 
     // 如果解析失败，尝试直接使用内容
     if (!description && content) {
-      description = content.substring(0, 100).trim();
+      description = content.substring(0, 200).trim();
     }
 
     if (keywords.length === 0) {
@@ -182,7 +222,7 @@ async function processImageWithAI(imagePath) {
 
     const categoryId = matchCategory(keywords, description);
 
-    return { description, keywords, categoryId };
+    return { description, keywords, categoryId, extractedText };
   } catch (error) {
     console.error('AI 处理图片失败:', error.message);
     return defaultResult;

@@ -197,6 +197,18 @@ async function initDatabase() {
     )
   `);
 
+  // 添加 extracted_text 列到 images 表（如果不存在）
+  try {
+    const columns = db.exec("PRAGMA table_info(images)");
+    const columnNames = columns[0]?.values?.map(col => col[1]) || [];
+    if (!columnNames.includes('extracted_text')) {
+      database.exec('ALTER TABLE images ADD COLUMN extracted_text TEXT');
+      console.log('已添加 extracted_text 列');
+    }
+  } catch (e) {
+    console.log('添加 extracted_text 列失败或已存在');
+  }
+
   // 初始化默认管理员账号
   const adminExists = database.prepare('SELECT id FROM users WHERE username = ?').get('admin');
   if (!adminExists) {

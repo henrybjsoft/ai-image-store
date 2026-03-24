@@ -137,8 +137,8 @@ const ImageRepository = {
       INSERT INTO images (
         filename, original_name, file_path, thumbnail_path,
         file_size, file_format, width, height,
-        description, keywords, category_id, uploaded_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        description, keywords, category_id, uploaded_by, extracted_text
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       data.filename,
       data.originalName,
@@ -151,7 +151,8 @@ const ImageRepository = {
       data.description,
       data.keywords,
       data.categoryId,
-      data.uploadedBy
+      data.uploadedBy,
+      data.extractedText || ''
     );
     return result.lastInsertRowid;
   },
@@ -177,9 +178,10 @@ const ImageRepository = {
         description = ?,
         keywords = ?,
         category_id = ?,
+        extracted_text = ?,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(data.description, data.keywords, data.categoryId, id);
+    `).run(data.description, data.keywords, data.categoryId, data.extractedText || '', id);
   },
 
   // 删除图片（移入回收站）

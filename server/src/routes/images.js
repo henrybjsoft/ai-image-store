@@ -251,7 +251,8 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
           description: aiResult.description,
           keywords: JSON.stringify(aiResult.keywords),
           categoryId: aiResult.categoryId,
-          uploadedBy: req.user.id
+          uploadedBy: req.user.id,
+          extractedText: aiResult.extractedText
         });
 
         // 步骤6: 生成向量
@@ -366,7 +367,8 @@ router.post('/upload', authenticateToken, upload.array('images', MAX_FILES), asy
           description: aiResult.description,
           keywords: JSON.stringify(aiResult.keywords),
           categoryId: aiResult.categoryId,
-          uploadedBy: req.user.id
+          uploadedBy: req.user.id,
+          extractedText: aiResult.extractedText
         });
 
         // 获取描述的向量并存储
@@ -820,7 +822,8 @@ router.post('/:id/reanalyze', authenticateToken, async (req, res) => {
         description: aiResult.description,
         keywords: aiResult.keywords,
         categoryId: aiResult.categoryId,
-        categoryName: aiResult.categoryId ? CategoryRepository.getNameById(aiResult.categoryId) : null
+        categoryName: aiResult.categoryId ? CategoryRepository.getNameById(aiResult.categoryId) : null,
+        extractedText: aiResult.extractedText
       }
     });
   } catch (error) {

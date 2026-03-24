@@ -47,6 +47,10 @@
             <span v-if="keywords.length === 0" class="empty-text">暂无</span>
           </div>
         </div>
+        <div class="preview-section" v-if="image.extracted_text">
+          <div class="section-label">识别文字</div>
+          <div class="section-content extracted-text">{{ image.extracted_text }}</div>
+        </div>
         <div class="preview-section">
           <div class="section-label">分类</div>
           <div class="section-content">{{ image.category_name || '未分类' }}</div>
@@ -232,7 +236,11 @@ async function handleReanalyze() {
   try {
     const res = await imageApi.reanalyze(props.image.id)
     // 更新图片信息
-    Object.assign(props.image, res.data)
+    props.image.description = res.data.description
+    props.image.keywords = res.data.keywords
+    props.image.category_id = res.data.categoryId
+    props.image.category_name = res.data.categoryName
+    props.image.extracted_text = res.data.extractedText
     message.success('重新识别成功')
     emit('reanalyze', props.image)
   } catch (error) {
@@ -345,6 +353,16 @@ async function handleReanalyze() {
 .section-content {
   color: #1e293b;
   line-height: 1.6;
+}
+
+.extracted-text {
+  background: #f0f9ff;
+  border-left: 3px solid #0ea5e9;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 .section-tags {
