@@ -25,70 +25,75 @@
         </div>
       </div>
       <div class="preview-sidebar">
-        <h3>{{ image.original_name }}</h3>
-
-        <!-- 相似度（语义搜索场景） -->
-        <div class="preview-section" v-if="similarity !== null">
-          <div class="section-label">匹配度</div>
-          <div class="similarity-bar">
-            <div class="similarity-value" :style="{ width: (similarity * 100) + '%' }"></div>
-          </div>
-          <div class="similarity-text">{{ (similarity * 100).toFixed(2) }}%</div>
+        <div class="sidebar-header">
+          <h3>{{ image.original_name }}</h3>
         </div>
 
-        <div class="preview-section">
-          <div class="section-label">描述</div>
-          <div class="section-content">{{ image.description || '暂无描述' }}</div>
-        </div>
-        <div class="preview-section">
-          <div class="section-label">关键词</div>
-          <div class="section-tags">
-            <a-tag v-for="kw in keywords" :key="kw">{{ kw }}</a-tag>
-            <span v-if="keywords.length === 0" class="empty-text">暂无</span>
+        <div class="sidebar-content">
+          <!-- 相似度（语义搜索场景） -->
+          <div class="preview-section" v-if="similarity !== null">
+            <div class="section-label">匹配度</div>
+            <div class="similarity-bar">
+              <div class="similarity-value" :style="{ width: (similarity * 100) + '%' }"></div>
+            </div>
+            <div class="similarity-text">{{ (similarity * 100).toFixed(2) }}%</div>
           </div>
-        </div>
-        <div class="preview-section" v-if="image.extracted_text">
-          <div class="section-label">识别文字</div>
-          <div class="section-content extracted-text">{{ image.extracted_text }}</div>
-        </div>
-        <div class="preview-section">
-          <div class="section-label">分类</div>
-          <div class="section-content">{{ image.category_name || '未分类' }}</div>
-        </div>
-        <div class="preview-section">
-          <div class="section-label">标签</div>
-          <div class="section-tags">
-            <a-tag v-for="tag in (image.tags || [])" :key="tag.id" color="blue">{{ tag.name }}</a-tag>
-            <span v-if="!image.tags?.length" class="empty-text">暂无</span>
+
+          <div class="preview-section">
+            <div class="section-label">描述</div>
+            <div class="section-content">{{ image.description || '暂无描述' }}</div>
           </div>
-        </div>
-        <div class="preview-section">
-          <div class="section-label">文件信息</div>
-          <div class="section-info">
-            <div class="info-row">
-              <span class="info-label">大小</span>
-              <span class="info-value">{{ formatSize(image.file_size) }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">尺寸</span>
-              <span class="info-value" v-if="image.width && image.height">{{ image.width }} × {{ image.height }}</span>
-              <span class="info-value" v-else>-</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">格式</span>
-              <span class="info-value">{{ image.file_format?.toUpperCase() }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">上传者</span>
-              <span class="info-value">{{ image.uploader_name || '未知' }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">上传时间</span>
-              <span class="info-value">{{ formatDate(image.created_at) }}</span>
+          <div class="preview-section">
+            <div class="section-label">关键词</div>
+            <div class="section-tags">
+              <a-tag v-for="kw in keywords" :key="kw">{{ kw }}</a-tag>
+              <span v-if="keywords.length === 0" class="empty-text">暂无</span>
             </div>
           </div>
+          <div class="preview-section" v-if="image.extracted_text">
+            <div class="section-label">识别文字</div>
+            <div class="section-content extracted-text">{{ image.extracted_text }}</div>
+          </div>
+          <div class="preview-section">
+            <div class="section-label">分类</div>
+            <div class="section-content">{{ image.category_name || '未分类' }}</div>
+          </div>
+          <div class="preview-section">
+            <div class="section-label">标签</div>
+            <div class="section-tags">
+              <a-tag v-for="tag in (image.tags || [])" :key="tag.id" color="blue">{{ tag.name }}</a-tag>
+              <span v-if="!image.tags?.length" class="empty-text">暂无</span>
+            </div>
+          </div>
+          <div class="preview-section">
+            <div class="section-label">文件信息</div>
+            <div class="section-info">
+              <div class="info-row">
+                <span class="info-label">大小</span>
+                <span class="info-value">{{ formatSize(image.file_size) }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">尺寸</span>
+                <span class="info-value" v-if="image.width && image.height">{{ image.width }} × {{ image.height }}</span>
+                <span class="info-value" v-else>-</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">格式</span>
+                <span class="info-value">{{ image.file_format?.toUpperCase() }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">上传者</span>
+                <span class="info-value">{{ image.uploader_name || '未知' }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">上传时间</span>
+                <span class="info-value">{{ formatDate(image.created_at) }}</span>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="preview-actions" v-if="showActions">
+
+        <div class="sidebar-footer" v-if="showActions">
           <a-button type="primary" @click="handleDownload">
             <DownloadOutlined /> 下载
           </a-button>
@@ -273,7 +278,7 @@ async function handleReanalyze() {
 
 .preview-container {
   display: flex;
-  min-height: 70vh;
+  height: 80vh;
 }
 
 .preview-image {
@@ -288,7 +293,7 @@ async function handleReanalyze() {
 
 .preview-image img {
   max-width: 100%;
-  max-height: 70vh;
+  max-height: calc(80vh - 48px);
   object-fit: contain;
   border-radius: 8px;
 }
@@ -340,16 +345,37 @@ async function handleReanalyze() {
 
 .preview-sidebar {
   width: 420px;
-  padding: 24px;
   background: white;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
-.preview-sidebar h3 {
+.sidebar-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.sidebar-header h3 {
   font-size: 18px;
   font-weight: 600;
-  margin-bottom: 24px;
+  margin: 0;
   color: #1e293b;
+}
+
+.sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+.sidebar-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+  background: white;
 }
 
 .preview-section {
@@ -412,12 +438,6 @@ async function handleReanalyze() {
   color: #1e293b;
   font-size: 13px;
   font-weight: 500;
-}
-
-.preview-actions {
-  display: flex;
-  gap: 12px;
-  margin-top: 24px;
 }
 
 .reanalyze-btn {
