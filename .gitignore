@@ -30,5 +30,7 @@ Thumbs.db
 *.temp
 .claude/settings.json
 
-# Server Assets Builds
+# 生产发布文件
 server/public/
+release/
+/*.zip

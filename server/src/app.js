@@ -68,14 +68,18 @@ app.use((err, req, res, next) => {
 
 // 初始化数据库并启动服务器
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 
 async function startServer() {
   try {
     await initDatabase();
     console.log('数据库初始化完成');
 
-    app.listen(PORT, () => {
-      console.log(`服务器运行在 http://localhost:${PORT}`);
+    app.listen(PORT, HOST, () => {
+      console.log(`服务器运行在 http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
+      if (HOST === '0.0.0.0') {
+        console.log('监听所有网络接口，局域网可通过本机IP访问');
+      }
     });
   } catch (error) {
     console.error('服务器启动失败:', error);
