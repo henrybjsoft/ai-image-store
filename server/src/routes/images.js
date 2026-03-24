@@ -147,6 +147,10 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
       });
     }
 
+    // 解析可选的分类和标签
+    const manualCategoryId = req.body.categoryId ? parseInt(req.body.categoryId) : null;
+    const manualTagIds = req.body.tagIds ? JSON.parse(req.body.tagIds) : [];
+
     // 设置 SSE 响应头
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -239,6 +243,9 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
         const relativeFilePath = path.relative(UPLOAD_DIR, filePath).replace(/\\/g, '/');
         const relativeThumbnailPath = thumbnailPath ? path.relative(UPLOAD_DIR, thumbnailPath).replace(/\\/g, '/') : null;
 
+        // 如果用户手动指定了分类，则使用手动指定的分类，否则使用AI识别的分类
+        const finalCategoryId = manualCategoryId || aiResult.categoryId;
+
         const imageId = ImageRepository.create({
           filename,
           originalName,
@@ -250,10 +257,17 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
           height: dimensions.height,
           description: aiResult.description,
           keywords: JSON.stringify(aiResult.keywords),
-          categoryId: aiResult.categoryId,
+          categoryId: finalCategoryId,
           uploadedBy: req.user.id,
           extractedText: aiResult.extractedText
         });
+
+        // 如果用户手动指定了标签，则添加这些标签
+        if (manualTagIds && manualTagIds.length > 0) {
+          for (const tagId of manualTagIds) {
+            ImageRepository.addTag(imageId, tagId);
+          }
+        }
 
         // 步骤6: 生成向量
         sendProgress({
@@ -335,6 +349,10 @@ router.post('/upload', authenticateToken, upload.array('images', MAX_FILES), asy
       });
     }
 
+    // 解析可选的分类和标签
+    const manualCategoryId = req.body.categoryId ? parseInt(req.body.categoryId) : null;
+    const manualTagIds = req.body.tagIds ? JSON.parse(req.body.tagIds) : [];
+
     const results = [];
 
     for (const file of req.files) {
@@ -355,6 +373,9 @@ router.post('/upload', authenticateToken, upload.array('images', MAX_FILES), asy
         const relativeFilePath = path.relative(UPLOAD_DIR, file.path).replace(/\\/g, '/');
         const relativeThumbnailPath = thumbnailPath ? path.relative(UPLOAD_DIR, thumbnailPath).replace(/\\/g, '/') : null;
 
+        // 如果用户手动指定了分类，则使用手动指定的分类，否则使用AI识别的分类
+        const finalCategoryId = manualCategoryId || aiResult.categoryId;
+
         const imageId = ImageRepository.create({
           filename: file.filename,
           originalName,
@@ -366,10 +387,17 @@ router.post('/upload', authenticateToken, upload.array('images', MAX_FILES), asy
           height: dimensions.height,
           description: aiResult.description,
           keywords: JSON.stringify(aiResult.keywords),
-          categoryId: aiResult.categoryId,
+          categoryId: finalCategoryId,
           uploadedBy: req.user.id,
           extractedText: aiResult.extractedText
         });
+
+        // 如果用户手动指定了标签，则添加这些标签
+        if (manualTagIds && manualTagIds.length > 0) {
+          for (const tagId of manualTagIds) {
+            ImageRepository.addTag(imageId, tagId);
+          }
+        }
 
         // 获取描述的向量并存储
         const embedding = await getEmbedding(buildEmbeddingText(aiResult.description, aiResult.extractedText));

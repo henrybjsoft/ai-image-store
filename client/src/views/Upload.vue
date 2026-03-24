@@ -6,6 +6,39 @@
         <p>支持 JPG、PNG、WebP、GIF、SVG 格式，单张不超过 10MB，单次最多 20 张</p>
       </div>
 
+      <!-- 可选设置 -->
+      <div class="optional-settings">
+        <div class="settings-title">
+          <SettingOutlined /> 可选设置（不填则自动识别）
+        </div>
+        <div class="settings-row">
+          <div class="setting-item">
+            <label>分类</label>
+            <a-tree-select
+              v-model:value="selectedCategory"
+              :tree-data="categoryTree"
+              placeholder="自动识别"
+              allow-clear
+              class="setting-select"
+            />
+          </div>
+          <div class="setting-item">
+            <label>标签</label>
+            <a-select
+              v-model:value="selectedTags"
+              mode="multiple"
+              placeholder="自动识别"
+              allow-clear
+              class="setting-select"
+            >
+              <a-select-option v-for="tag in tags" :key="tag.id" :value="tag.id">
+                {{ tag.name }}
+              </a-select-option>
+            </a-select>
+          </div>
+        </div>
+      </div>
+
       <div class="upload-area">
         <a-upload-dragger
           :file-list="displayFileList"
@@ -127,7 +160,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   CloudUploadOutlined,
@@ -135,15 +168,24 @@ import {
   CheckCircleFilled,
   CloseCircleFilled,
   LoadingOutlined,
-  ExclamationCircleOutlined
+  ExclamationCircleOutlined,
+  SettingOutlined
 } from '@ant-design/icons-vue'
 import { getToken } from '@/utils/auth'
+import { categoryApi } from '@/api/category'
+import { tagApi } from '@/api/tag'
 
 // 所有文件列表（包含有效和无效）
 const allFiles = ref([])
 const uploading = ref(false)
 const uploadingItems = ref([])
 const showResult = ref(false)
+
+// 可选设置
+const categories = ref([])
+const tags = ref([])
+const selectedCategory = ref(null)
+const selectedTags = ref([])
 
 const acceptTypes = '.jpg,.jpeg,.png,.webp,.gif,.svg'
 const maxFiles = 20
@@ -153,6 +195,20 @@ const progressColors = {
   '0%': '#6366f1',
   '100%': '#8b5cf6'
 }
+
+// 分类树结构
+const categoryTree = computed(() => {
+  const buildTree = (items, parentId = null) => {
+    return items
+      .filter(item => item.parent_id === parentId)
+      .map(item => ({
+        value: item.id,
+        title: item.name,
+        children: buildTree(items, item.id)
+      }))
+  }
+  return buildTree(categories.value)
+})
 
 // 无效文件列表
 const invalidFiles = computed(() => {
@@ -182,6 +238,23 @@ const successCount = computed(() => {
 const failedCount = computed(() => {
   return uploadingItems.value.filter(item => item.status === 'error').length
 })
+
+onMounted(async () => {
+  await loadOptions()
+})
+
+async function loadOptions() {
+  try {
+    const [catRes, tagRes] = await Promise.all([
+      categoryApi.getTree(),
+      tagApi.getList()
+    ])
+    categories.value = catRes.data || []
+    tags.value = tagRes.data || []
+  } catch (error) {
+    console.error('加载选项失败:', error)
+  }
+}
 
 // 处理文件变化
 function handleFileChange(info) {
@@ -285,6 +358,14 @@ async function handleUpload() {
   filesToUpload.forEach(file => {
     formData.append('images', file.originFileObj || file)
   })
+
+  // 添加可选的分类和标签
+  if (selectedCategory.value) {
+    formData.append('categoryId', selectedCategory.value)
+  }
+  if (selectedTags.value && selectedTags.value.length > 0) {
+    formData.append('tagIds', JSON.stringify(selectedTags.value))
+  }
 
   try {
     // 使用 fetch 发送请求并接收 SSE
@@ -456,6 +537,45 @@ function handleClear() {
 .upload-header p {
   color: #64748b;
   font-size: 14px;
+}
+
+/* 可选设置 */
+.optional-settings {
+  margin-bottom: 24px;
+  padding: 16px 20px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.settings-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+  margin-bottom: 16px;
+}
+
+.settings-row {
+  display: flex;
+  gap: 24px;
+}
+
+.setting-item {
+  flex: 1;
+}
+
+.setting-item label {
+  display: block;
+  font-size: 13px;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.setting-select {
+  width: 100%;
 }
 
 .upload-area {

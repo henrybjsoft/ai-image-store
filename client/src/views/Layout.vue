@@ -63,6 +63,18 @@
           </div>
         </div>
       </div>
+
+      <!-- 底部公司信息 -->
+      <div class="sidebar-footer">
+        <div class="company-logo">
+          <img src="@/assets/100jue.svg" alt="百珏科技" />
+        </div>
+        <transition name="fade">
+          <div v-show="!collapsed" class="copyright">
+            © 百珏科技
+          </div>
+        </transition>
+      </div>
     </a-layout-sider>
 
     <a-layout class="main-layout">
@@ -116,6 +128,28 @@
               </a-menu>
             </template>
           </a-dropdown>
+
+          <!-- 皮肤切换 -->
+          <a-dropdown :trigger="['click']">
+            <div class="theme-switch">
+              <BgColorsOutlined />
+            </div>
+            <template #overlay>
+              <a-menu class="theme-menu">
+                <a-menu-item
+                  v-for="(theme, key) in themes"
+                  :key="key"
+                  :class="{ 'theme-active': currentTheme === key }"
+                  @click="setTheme(key)"
+                >
+                  <div class="theme-option">
+                    <div class="theme-color" :style="{ background: theme.gradient }"></div>
+                    <span>{{ theme.name }}</span>
+                  </div>
+                </a-menu-item>
+              </a-menu>
+            </template>
+          </a-dropdown>
         </div>
       </a-layout-header>
 
@@ -135,6 +169,7 @@
 import { ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { useThemeStore, themes } from '@/stores/theme'
 import { menuIcons } from '@/assets/icons'
 import {
   PictureOutlined,
@@ -144,16 +179,24 @@ import {
   SearchOutlined,
   UserOutlined,
   DownOutlined,
-  UploadOutlined
+  UploadOutlined,
+  BgColorsOutlined
 } from '@ant-design/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+const themeStore = useThemeStore()
 
 const collapsed = ref(false)
 const selectedKeys = ref(['dashboard'])
 const searchKeyword = ref('')
+
+const currentTheme = ref(themeStore.currentTheme)
+const setTheme = (key) => {
+  themeStore.setTheme(key)
+  currentTheme.value = key
+}
 
 const mainMenuItems = [
   { key: 'dashboard', name: '仪表盘', path: '/', ...menuIcons.dashboard },
@@ -219,9 +262,11 @@ function handleLogout() {
   top: 0;
   bottom: 0;
   height: 100vh !important;
-  background: linear-gradient(180deg, #1e1b4b 0%, #312e81 50%, #3730a3 100%) !important;
+  background: var(--sidebar-bg, linear-gradient(180deg, #1e1b4b 0%, #312e81 50%, #3730a3 100%)) !important;
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
   z-index: 200;
+  display: flex;
+  flex-direction: column;
 }
 
 .sidebar::before {
@@ -281,7 +326,7 @@ function handleLogout() {
 .logo-icon {
   width: 42px;
   height: 42px;
-  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  background: var(--primary-gradient, linear-gradient(135deg, #6366f1 0%, #a855f7 100%));
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -337,7 +382,7 @@ function handleLogout() {
 }
 
 .menu-item.active {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  background: var(--sidebar-active, linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%));
   color: white;
   box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
 }
@@ -376,6 +421,32 @@ function handleLogout() {
 
 .sidebar-collapsed .menu-icon-wrapper {
   margin: 0;
+}
+
+/* 底部公司信息 */
+.sidebar-footer {
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.company-logo {
+  flex-shrink: 0;
+}
+
+.company-logo img {
+  height: 28px;
+  width: auto;
+  filter: brightness(0) invert(1);
+  opacity: 0.9;
+}
+
+.copyright {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 /* 头部样式 */
@@ -418,7 +489,7 @@ function handleLogout() {
 
 .collapse-btn:hover {
   background: #f1f5f9;
-  color: #6366f1;
+  color: var(--primary-color, #6366f1);
 }
 
 .header-right {
@@ -446,7 +517,7 @@ function handleLogout() {
 
 .search-input:focus,
 .search-input :deep(.ant-input:focus) {
-  border-color: #6366f1;
+  border-color: var(--primary-color, #6366f1);
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
 }
 
@@ -465,7 +536,46 @@ function handleLogout() {
 }
 
 .search-icon:hover {
-  color: #6366f1;
+  color: var(--primary-color, #6366f1);
+}
+
+/* 皮肤切换 */
+.theme-switch {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #64748b;
+  transition: all 0.2s ease;
+  font-size: 18px;
+}
+
+.theme-switch:hover {
+  background: #f1f5f9;
+  color: var(--primary-color, #6366f1);
+}
+
+.theme-menu {
+  min-width: 140px;
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.theme-color {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+
+.theme-active {
+  background: #f0f4ff;
 }
 
 .upload-btn {
@@ -475,7 +585,7 @@ function handleLogout() {
   height: 40px;
   padding: 0 20px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  background: var(--primary-gradient, linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%));
   border: none;
   font-weight: 500;
 }
@@ -488,6 +598,8 @@ function handleLogout() {
   border-radius: 24px;
   cursor: pointer;
   transition: all 0.2s ease;
+  height: 40px;
+  box-sizing: border-box;
 }
 
 .user-info:hover {
@@ -495,7 +607,7 @@ function handleLogout() {
 }
 
 .user-avatar {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  background: var(--primary-gradient, linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%));
 }
 
 .username {
