@@ -17,8 +17,13 @@ const systemRoutes = require('./routes/system');
 
 const app = express();
 
+// 判断是否为生产模式
+const isProduction = process.env.NODE_ENV === 'production';
+
 // 中间件
-app.use(cors());
+if (!isProduction) {
+  app.use(cors());
+}
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -40,6 +45,17 @@ app.use('/api/system', systemRoutes);
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// 生产模式：托管前端静态文件
+if (isProduction) {
+  const publicPath = path.join(__dirname, '../public');
+  app.use(express.static(publicPath));
+
+  // SPA 路由：所有非 API 路由返回 index.html
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(publicPath, 'index.html'));
+  });
+}
 
 // 错误处理中间件
 app.use((err, req, res, next) => {

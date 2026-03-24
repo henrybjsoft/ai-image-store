@@ -29,3 +29,6 @@ Thumbs.db
 *.tmp
 *.temp
 .claude/settings.json
+
+# Server Assets Builds
+server/public/
