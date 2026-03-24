@@ -4,8 +4,13 @@
       <div class="upload-header">
         <h2>上传图片</h2>
         <p>支持 JPG、PNG、WebP、GIF、SVG 格式，单张不超过 10MB，单次最多 100 张</p>
-        <p v-if="userStore.user?.role !== 'admin' && quotaInfo.quota > 0" class="quota-info">
-          已上传 {{ quotaInfo.imageCount }} / {{ quotaInfo.quota }} 张（剩余 {{ quotaInfo.quota - quotaInfo.imageCount }} 张）
+        <p v-if="quotaInfo.imageCount !== undefined" class="quota-info">
+          <template v-if="userStore.isAdmin">
+            已上传 {{ quotaInfo.imageCount }} 张
+          </template>
+          <template v-else-if="quotaInfo.quota > 0">
+            已上传 {{ quotaInfo.imageCount }} / {{ quotaInfo.quota }} 张（剩余 {{ quotaInfo.quota - quotaInfo.imageCount }} 张）
+          </template>
         </p>
       </div>
 
@@ -50,6 +55,7 @@
           :accept="acceptTypes"
           :remove="handleRemoveValidFile"
           list-type="picture-card"
+          :show-upload-list="{ showPreviewIcon: false, showRemoveIcon: true }"
           class="uploader"
           @change="handleFileChange"
           @preview="handlePreview"
@@ -268,13 +274,11 @@ async function loadOptions() {
 }
 
 async function loadQuotaInfo() {
-  if (userStore.user?.role !== 'admin') {
-    try {
-      const res = await userApi.getQuotaInfo()
-      quotaInfo.value = res.data
-    } catch (error) {
-      console.error('加载配额信息失败:', error)
-    }
+  try {
+    const res = await userApi.getQuotaInfo()
+    quotaInfo.value = res.data
+  } catch (error) {
+    console.error('加载配额信息失败:', error)
   }
 }
 
@@ -295,6 +299,7 @@ function handleFileChange(info) {
 
 // 检查文件有效性
 let hasShownLimitWarning = false
+let hasShownQuotaWarning = false
 
 function checkFileValidity() {
   const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']
@@ -307,23 +312,36 @@ function checkFileValidity() {
       file.invalidReason = '格式不支持'
     } else if (file.size > maxFileSize) {
       file.invalidReason = `超过10MB限制 (${(file.size / 1024 / 1024).toFixed(1)}MB)`
-    } else if (!file.invalidReason || file.invalidReason.startsWith('超出数量限制')) {
+    } else if (!file.invalidReason || file.invalidReason.startsWith('超出数量限制') || file.invalidReason.startsWith('超出配额限制')) {
       // 格式和大小都有效，清除之前的数量限制标记（后面会重新计算）
       file.invalidReason = null
     }
   })
 
+  // 计算剩余配额（普通用户）
+  const remainingQuota = !userStore.isAdmin && quotaInfo.value.quota > 0
+    ? quotaInfo.value.quota - quotaInfo.value.imageCount
+    : null
+
   // 再检查数量限制
   let validCount = 0
   allFiles.value.forEach(file => {
     // 跳过已经因为格式/大小被标记为无效的
-    if (file.invalidReason && !file.invalidReason.startsWith('超出数量限制')) {
+    if (file.invalidReason && !file.invalidReason.startsWith('超出数量限制') && !file.invalidReason.startsWith('超出配额限制')) {
       return
     }
 
     validCount++
+
+    // 检查单次上传数量限制（100张）
     if (validCount > maxFiles) {
       file.invalidReason = `超出数量限制（最多${maxFiles}张）`
+      return
+    }
+
+    // 检查配额限制（普通用户）
+    if (remainingQuota !== null && validCount > remainingQuota) {
+      file.invalidReason = `超出配额限制（剩余${remainingQuota}张）`
     }
   })
 
@@ -332,6 +350,12 @@ function checkFileValidity() {
   if (currentValidCount > maxFiles && !hasShownLimitWarning) {
     message.warning(`最多上传 ${maxFiles} 张图片，已自动跳过超出部分`)
     hasShownLimitWarning = true
+  }
+
+  // 显示配额警告
+  if (remainingQuota !== null && currentValidCount > remainingQuota && !hasShownQuotaWarning) {
+    message.warning(`剩余配额 ${remainingQuota} 张，已自动跳过超出部分`)
+    hasShownQuotaWarning = true
   }
 }
 
@@ -487,8 +511,11 @@ function handleProgressEvent(data) {
     case 'done':
       // 全部完成
       hasShownLimitWarning = false
+      hasShownQuotaWarning = false
       if (data.success > 0) {
         message.success(`成功上传 ${data.success} 张图片`)
+        // 重新加载配额信息
+        loadQuotaInfo()
       }
       if (data.failed > 0) {
         message.warning(`${data.failed} 张图片上传失败`)
@@ -526,6 +553,7 @@ function handleClear() {
   uploadingItems.value = []
   showResult.value = false
   hasShownLimitWarning = false
+  hasShownQuotaWarning = false
   handlePreviewClose()
 }
 </script>
