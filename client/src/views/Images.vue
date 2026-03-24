@@ -38,6 +38,9 @@
         <a-button type="primary" class="semantic-btn" @click="showSemanticSearch = true">
           <BulbOutlined /> 语义搜索
         </a-button>
+        <a-button class="reset-btn" @click="handleReset">
+          <ReloadOutlined /> 重置
+        </a-button>
       </div>
 
       <div class="filter-right">
@@ -296,7 +299,8 @@ import {
   DeleteOutlined,
   BulbOutlined,
   SyncOutlined,
-  SearchOutlined
+  SearchOutlined,
+  ReloadOutlined
 } from '@ant-design/icons-vue'
 import { imageApi } from '@/api/image'
 import { categoryApi } from '@/api/category'
@@ -401,6 +405,14 @@ async function loadTags() {
 }
 
 function handleFilter() {
+  pagination.current = 1
+  loadImages()
+}
+
+function handleReset() {
+  selectedCategory.value = null
+  selectedTag.value = null
+  keyword.value = ''
   pagination.current = 1
   loadImages()
 }
@@ -664,6 +676,10 @@ watch(() => route.query.keyword, (newKeyword) => {
 .semantic-btn {
   background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
   border: none;
+  margin-left: 8px;
+}
+
+.reset-btn {
   margin-left: 8px;
 }
 
