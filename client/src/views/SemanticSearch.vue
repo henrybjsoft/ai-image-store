@@ -13,6 +13,7 @@
           placeholder="例如：蓝色的风景照片、可爱的小动物、现代建筑..."
           :auto-size="{ minRows: 2, maxRows: 4 }"
           class="query-input"
+          @keydown="handleKeydown"
         />
 
         <div class="search-options">
@@ -177,6 +178,28 @@ async function loadOptions() {
     tags.value = tagRes.data || []
   } catch (error) {
     console.error('加载选项失败:', error)
+  }
+}
+
+function handleKeydown(e) {
+  if (e.key === 'Enter') {
+    if (e.altKey || e.ctrlKey || e.shiftKey) {
+      // Alt/Ctrl/Shift+Enter: 插入换行符
+      e.preventDefault()
+      const textarea = e.target
+      const start = textarea.selectionStart
+      const end = textarea.selectionEnd
+      const value = query.value || ''
+      query.value = value.substring(0, start) + '\n' + value.substring(end)
+      // 恢复光标位置
+      setTimeout(() => {
+        textarea.selectionStart = textarea.selectionEnd = start + 1
+      }, 0)
+    } else {
+      // Enter: 阻止换行，执行搜索
+      e.preventDefault()
+      handleSearch()
+    }
   }
 }
 
