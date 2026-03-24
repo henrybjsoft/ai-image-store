@@ -207,14 +207,39 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
 
     const totalFiles = req.files.length;
     const results = [];
+    const CONCURRENCY = parseInt(process.env.UPLOAD_CONCURRENCY) || 5; // 从环境变量读取并发数，默认5
 
     // 发送初始状态
     sendProgress({ type: 'start', total: totalFiles });
 
-    for (let i = 0; i < req.files.length; i++) {
-      const file = req.files[i];
+    // 并发控制器
+    class ConcurrencyLimit {
+      constructor(limit) {
+        this.limit = limit;
+        this.running = 0;
+        this.queue = [];
+      }
+
+      async run(fn) {
+        while (this.running >= this.limit) {
+          await new Promise(resolve => this.queue.push(resolve));
+        }
+        this.running++;
+        try {
+          return await fn();
+        } finally {
+          this.running--;
+          const next = this.queue.shift();
+          if (next) next();
+        }
+      }
+    }
+
+    const limiter = new ConcurrencyLimit(CONCURRENCY);
+
+    // 处理单个文件的函数
+    async function processFile(file, fileIndex) {
       const originalName = decodeFilename(file.originalname);
-      const fileIndex = i;
 
       try {
         // 步骤1: 保存文件
@@ -350,6 +375,7 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
 
         LogRepository.create(req.user.id, 'upload_image', 'image', imageId, `上传图片: ${originalName}`, req.ip);
 
+        return { success: true, imageId };
       } catch (error) {
         console.error('处理图片失败:', error);
         results.push({
@@ -364,8 +390,17 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
           fileName: originalName,
           error: error.message
         });
+
+        return { success: false, error: error.message };
       }
     }
+
+    // 并发处理所有文件
+    const promises = req.files.map((file, index) =>
+      limiter.run(() => processFile(file, index))
+    );
+
+    await Promise.all(promises);
 
     // 发送最终结果
     sendProgress({
