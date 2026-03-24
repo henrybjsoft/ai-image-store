@@ -143,7 +143,8 @@ import {
   LogoutOutlined,
   SearchOutlined,
   UserOutlined,
-  DownOutlined
+  DownOutlined,
+  UploadOutlined
 } from '@ant-design/icons-vue'
 
 const router = useRouter()
