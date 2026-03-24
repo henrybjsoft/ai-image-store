@@ -93,6 +93,7 @@ async function createThumbnail(filePath, filename) {
     const thumbnailPath = path.join(THUMBNAIL_DIR, thumbnailFilename);
 
     await sharp(filePath)
+      .rotate() // 根据 EXIF 方向自动旋转
       .resize(300, 300, { fit: 'inside' })
       .jpeg({ quality: 80 })
       .toFile(thumbnailPath);
@@ -101,6 +102,34 @@ async function createThumbnail(filePath, filename) {
   } catch (error) {
     console.error('创建缩略图失败:', error);
     return null;
+  }
+}
+
+// 修正图片方向（根据 EXIF 信息旋转并去除方向标签）
+async function fixImageOrientation(filePath, ext) {
+  try {
+    // 只处理 JPEG 和 PNG 图片
+    if (!['.jpg', '.jpeg', '.png'].includes(ext.toLowerCase())) {
+      return;
+    }
+
+    const image = sharp(filePath);
+    const metadata = await image.metadata();
+
+    // 如果有 EXIF 方向信息且不是 1（正常方向）
+    if (metadata.orientation && metadata.orientation !== 1) {
+      // 读取图片，旋转到正确方向，去除 EXIF 方向信息
+      await image
+        .rotate()
+        .withMetadata({ orientation: 1 }) // 去除方向标签
+        .toFile(filePath + '.tmp');
+
+      // 替换原文件
+      fs.unlinkSync(filePath);
+      fs.renameSync(filePath + '.tmp', filePath);
+    }
+  } catch (error) {
+    console.error('修正图片方向失败:', error);
   }
 }
 
@@ -208,6 +237,9 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
         const filename = `${uuidv4()}${ext}`;
         const filePath = path.join(dir, filename);
         fs.writeFileSync(filePath, file.buffer);
+
+        // 修正图片方向（根据 EXIF 信息旋转）
+        await fixImageOrientation(filePath, ext);
 
         // 步骤2: 获取图片尺寸
         sendProgress({
