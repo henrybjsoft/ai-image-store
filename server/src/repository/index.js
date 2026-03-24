@@ -639,11 +639,80 @@ const SearchRepository = {
   }
 };
 
+// ==================== 向量相关操作 ====================
+
+const VectorRepository = {
+  // 添加或更新向量
+  upsert(imageId, embedding) {
+    const db = getDatabase();
+    const embeddingJson = JSON.stringify(embedding);
+    db.prepare(`
+      INSERT INTO vectors (image_id, embedding) VALUES (?, ?)
+      ON CONFLICT(image_id) DO UPDATE SET embedding = excluded.embedding, created_at = CURRENT_TIMESTAMP
+    `).run(imageId, embeddingJson);
+  },
+
+  // 删除向量
+  delete(imageId) {
+    const db = getDatabase();
+    db.prepare('DELETE FROM vectors WHERE image_id = ?').run(imageId);
+  },
+
+  // 批量删除向量
+  deleteBatch(imageIds) {
+    if (!imageIds || imageIds.length === 0) return;
+    const db = getDatabase();
+    const placeholders = imageIds.map(() => '?').join(',');
+    db.prepare(`DELETE FROM vectors WHERE image_id IN (${placeholders})`).run(...imageIds);
+  },
+
+  // 获取单个向量
+  get(imageId) {
+    const db = getDatabase();
+    const row = db.prepare('SELECT embedding FROM vectors WHERE image_id = ?').get(imageId);
+    if (!row) return null;
+    try {
+      return JSON.parse(row.embedding);
+    } catch {
+      return null;
+    }
+  },
+
+  // 获取所有向量
+  getAll() {
+    const db = getDatabase();
+    const rows = db.prepare('SELECT image_id, embedding FROM vectors').all();
+    const vectors = {};
+    for (const row of rows) {
+      try {
+        vectors[row.image_id] = {
+          embedding: JSON.parse(row.embedding),
+          createdAt: row.created_at
+        };
+      } catch {}
+    }
+    return vectors;
+  },
+
+  // 清空所有向量
+  clear() {
+    const db = getDatabase();
+    db.prepare('DELETE FROM vectors').run();
+  },
+
+  // 获取向量数量
+  count() {
+    const db = getDatabase();
+    return db.prepare('SELECT COUNT(*) as count FROM vectors').get().count;
+  }
+};
+
 module.exports = {
   UserRepository,
   ImageRepository,
   CategoryRepository,
   TagRepository,
   LogRepository,
-  SearchRepository
+  SearchRepository,
+  VectorRepository
 };

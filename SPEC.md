@@ -407,11 +407,21 @@ CREATE TABLE logs (
 
 ### 4.2 向量存储设计
 
-- 使用本地 JSON 文件存储图片描述的向量表示
+- 使用 SQLite 数据库存储图片描述的向量表示
 - 向量维度：1024（DashScope text-embedding-v3 输出维度）
-- 存储文件：`data/vectors.json`
-- 索引结构：`{ imageId: [vector] }`
+- 存储表：`vectors`
+- 索引结构：`image_id` 为主键，`embedding` 存储 JSON 格式的向量数组
 - 搜索算法：余弦相似度
+
+#### 4.2.1 向量表 (vectors)
+```sql
+CREATE TABLE vectors (
+  image_id INTEGER PRIMARY KEY,
+  embedding TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
+);
+```
 
 ### 4.3 数据访问层设计
 
@@ -432,6 +442,7 @@ CREATE TABLE logs (
 | TagRepository | 标签管理 |
 | LogRepository | 操作日志记录与查询 |
 | SearchRepository | 搜索功能 |
+| VectorRepository | 向量数据存储与检索 |
 
 #### 4.3.3 使用方式
 
@@ -617,9 +628,8 @@ image-asset-management/
 │   ├── uploads/               # 上传文件存储
 │   │   ├── YYYY-MM/           # 按年月分目录存储原图
 │   │   └── thumbnails/        # 缩略图目录
-│   ├── data/                  # SQLite 数据库和向量索引
-│   │   ├── database.db        # SQLite 数据库文件
-│   │   └── vectors.json       # 向量索引文件
+│   ├── data/                  # SQLite 数据库
+│   │   └── database.db        # SQLite 数据库文件（含向量数据）
 │   ├── .env                   # 环境变量配置
 │   └── package.json
 ├── SPEC.md                     # 需求规格说明书
@@ -705,3 +715,4 @@ ALLOWED_FORMATS=jpg,jpeg,png,webp,gif,svg
 | 2026-03-24 | v1.4.0 | 上传功能优化与UI改进：<br>- **文件选择验证**：选择文件时自动验证格式、大小，不符合条件的文件标记显示<br>- **数量限制优化**：超过20张限制时自动标记超出部分，仅处理有效文件<br>- **无效文件管理**：无效文件单独显示在红色区域，可单独移除<br>- **本地预览**：上传前点击图片可在弹窗中预览本地文件<br>- **图片库统计**：图片库页面显示当前筛选条件下的总图片数量<br>- **分页样式修复**：当前页码使用白色文字，提升可读性 |
 | 2026-03-24 | v1.5.0 | 语义搜索独立与UI美化：<br>- **语义搜索独立页面**：将语义搜索从图片库中独立出来，新增独立菜单入口<br>- **语义搜索增强**：支持Top K参数设置（默认10），支持分类、标签筛选，显示相似度百分比<br>- **图片详情组件化**：抽取ImageDetail.vue可复用组件，支持收藏、下载、删除、重新识别等操作<br>- **菜单图标美化**：使用有意义的SVG图标替换色块，包括仪表盘、图片库、语义搜索、上传、收藏等<br>- **搜索组件优化**：统一搜索框样式，优化聚焦效果，新增重置按钮 |
 | 2026-03-24 | v1.6.0 | AI识别能力增强：<br>- **详细描述**：图片描述从一句话扩展为2-4句话，包含主体内容、场景环境、色彩构图、情感氛围<br>- **关键词增加**：关键词从3-5个扩展为8-15个，覆盖主体对象、场景环境、风格特点、色彩特点、情感氛围<br>- **文字识别**：新增图片文字识别功能，自动提取图片中的标题、标语、说明文字、水印等<br>- **分类关键词库扩展**：每个分类增加更多匹配关键词，提升分类准确性 |
+| 2026-03-24 | v1.7.0 | 向量存储重构与语义搜索优化：<br>- **向量存储迁移**：向量数据从 JSON 文件迁移到 SQLite 数据库，新增 vectors 表存储向量数据<br>- **向量生成优化**：生成向量时将识别到的文字加入描述，提升语义搜索准确性<br>- **语义搜索修复**：修复相似度显示错误（distance 误用作 similarity），现在正确显示匹配度百分比<br>- **语义搜索交互**：支持 Enter 键搜索，Alt/Ctrl/Shift+Enter 换行<br>- **术语调整**：语义搜索界面将"相似度"改为"匹配度" |

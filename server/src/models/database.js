@@ -211,6 +211,16 @@ async function initDatabase() {
     console.log('添加 extracted_text 列失败或已存在');
   }
 
+  // 创建向量表
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS vectors (
+      image_id INTEGER PRIMARY KEY,
+      embedding TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
+    )
+  `);
+
   // 初始化默认管理员账号
   const adminExists = database.prepare('SELECT id FROM users WHERE username = ?').get('admin');
   if (!adminExists) {
