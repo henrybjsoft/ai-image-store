@@ -116,8 +116,10 @@
       v-model:visible="previewVisible"
       :image="previewItem?.image"
       :similarity="previewItem?.similarity"
-      :show-delete="false"
+      :is-admin="userStore.isAdmin"
+      :current-user-id="userStore.user?.id"
       :show-reanalyze="false"
+      @delete="handleDeleteRefresh"
     />
   </div>
 </template>
@@ -135,6 +137,9 @@ import { searchApi } from '@/api/search'
 import { categoryApi } from '@/api/category'
 import { tagApi } from '@/api/tag'
 import ImageDetail from '@/components/ImageDetail.vue'
+import { useUserStore } from '@/stores/user'
+
+const userStore = useUserStore()
 
 const loading = ref(false)
 const hasSearched = ref(false)
@@ -268,6 +273,13 @@ function getImageUrl(image, large = false) {
 function showPreview(item) {
   previewItem.value = item
   previewVisible.value = true
+}
+
+function handleDeleteRefresh() {
+  // 从结果列表中移除已删除的图片
+  if (previewItem.value) {
+    results.value = results.value.filter(r => r.image.id !== previewItem.value.image.id)
+  }
 }
 </script>
 

@@ -19,6 +19,9 @@
               <div class="action-item" @click.stop="handleDownload(image)">
                 <DownloadOutlined />
               </div>
+              <div class="action-item delete" v-if="canDelete(image)" @click.stop="handleDelete(image)">
+                <DeleteOutlined />
+              </div>
             </div>
           </div>
         </div>
@@ -44,7 +47,10 @@
     <ImageDetail
       v-model:visible="previewVisible"
       :image="previewImage"
+      :is-admin="userStore.isAdmin"
+      :current-user-id="userStore.user?.id"
       @favorite="loadImages"
+      @delete="handleDeleteRefresh"
     />
   </div>
 </template>
@@ -52,9 +58,12 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
-import { HeartOutlined, HeartFilled, DownloadOutlined } from '@ant-design/icons-vue'
+import { HeartOutlined, HeartFilled, DownloadOutlined, DeleteOutlined } from '@ant-design/icons-vue'
 import { imageApi } from '@/api/image'
 import ImageDetail from '@/components/ImageDetail.vue'
+import { useUserStore } from '@/stores/user'
+
+const userStore = useUserStore()
 
 const loading = ref(false)
 const images = ref([])
@@ -126,6 +135,27 @@ async function handleDownload(image) {
   } catch (error) {
     message.error('下载失败')
   }
+}
+
+// 判断是否可以删除：管理员可删除任何图片，普通用户只能删除自己的图片
+function canDelete(image) {
+  if (userStore.isAdmin) return true
+  if (userStore.user?.id && image.uploaded_by === userStore.user.id) return true
+  return false
+}
+
+async function handleDelete(image) {
+  try {
+    await imageApi.delete(image.id)
+    message.success('已移入回收站')
+    loadImages()
+  } catch (error) {
+    message.error('删除失败')
+  }
+}
+
+function handleDeleteRefresh() {
+  loadImages()
 }
 </script>
 
@@ -227,6 +257,15 @@ async function handleDownload(image) {
 
 .action-item.favorited {
   color: #ef4444;
+}
+
+.action-item.delete {
+  color: #ef4444;
+}
+
+.action-item.delete:hover {
+  background: #fee2e2;
+  color: #dc2626;
 }
 
 .image-info {

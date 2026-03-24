@@ -106,7 +106,7 @@
               <div class="action-item" @click.stop="handleDownload(image)">
                 <DownloadOutlined />
               </div>
-              <div class="action-item delete" @click.stop="handleDelete(image)">
+              <div class="action-item delete" v-if="canDelete(image)" @click.stop="handleDelete(image)">
                 <DeleteOutlined />
               </div>
             </div>
@@ -156,7 +156,7 @@
           <a-button type="text" size="small" @click="handleDownload(image)">
             <DownloadOutlined />
           </a-button>
-          <a-button type="text" size="small" danger @click="handleDelete(image)">
+          <a-button type="text" size="small" danger v-if="canDelete(image)" @click="handleDelete(image)">
             <DeleteOutlined />
           </a-button>
         </div>
@@ -185,6 +185,8 @@
     <ImageDetail
       v-model:visible="previewVisible"
       :image="previewImage"
+      :is-admin="userStore.isAdmin"
+      :current-user-id="userStore.user?.id"
       @delete="handleDeleteRefresh"
       @reanalyze="handleReanalyzeRefresh"
     />
@@ -213,8 +215,10 @@ import { categoryApi } from '@/api/category'
 import { tagApi } from '@/api/tag'
 import { searchApi } from '@/api/search'
 import ImageDetail from '@/components/ImageDetail.vue'
+import { useUserStore } from '@/stores/user'
 
 const route = useRoute()
+const userStore = useUserStore()
 
 const loading = ref(false)
 const images = ref([])
@@ -345,6 +349,13 @@ function formatSize(bytes) {
 
 function formatDate(date) {
   return dayjs(date).format('YYYY-MM-DD HH:mm')
+}
+
+// 判断是否可以删除：管理员可删除任何图片，普通用户只能删除自己的图片
+function canDelete(image) {
+  if (userStore.isAdmin) return true
+  if (userStore.user?.id && image.uploaded_by === userStore.user.id) return true
+  return false
 }
 
 function handlePreview(image) {

@@ -17,7 +17,7 @@
               <HeartOutlined v-else />
             </div>
           </a-tooltip>
-          <a-tooltip title="删除" v-if="showDelete">
+          <a-tooltip title="删除" v-if="canDelete">
             <div class="image-action-btn delete" @click="handleDelete">
               <DeleteOutlined />
             </div>
@@ -132,13 +132,17 @@ const props = defineProps({
     type: Boolean,
     default: true
   },
-  showDelete: {
-    type: Boolean,
-    default: true
-  },
   showReanalyze: {
     type: Boolean,
     default: true
+  },
+  isAdmin: {
+    type: Boolean,
+    default: false
+  },
+  currentUserId: {
+    type: Number,
+    default: null
   }
 })
 
@@ -155,6 +159,16 @@ const keywords = computed(() => {
   } catch {
     return []
   }
+})
+
+// 判断是否可以删除：管理员可删除任何图片，普通用户只能删除自己的图片
+const canDelete = computed(() => {
+  if (!props.image) return false
+  // 管理员可以删除
+  if (props.isAdmin) return true
+  // 本人可以删除
+  if (props.currentUserId && props.image.uploaded_by === props.currentUserId) return true
+  return false
 })
 
 function getImageUrl(large = false) {
