@@ -50,7 +50,7 @@ const storage = multer.diskStorage({
 
 const ALLOWED_FORMATS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'];
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024;
-const MAX_FILES = parseInt(process.env.MAX_FILES) || 20;
+const MAX_FILES = parseInt(process.env.MAX_FILES) || 100;
 
 const fileFilter = (req, file, cb) => {
   const ext = path.extname(file.originalname).toLowerCase().slice(1);
@@ -92,7 +92,7 @@ async function createThumbnail(filePath, filename) {
     const thumbnailFilename = `thumb_${path.basename(filename, ext)}.jpg`;
     const thumbnailPath = path.join(THUMBNAIL_DIR, thumbnailFilename);
 
-    const thumbnailSize = parseInt(process.env.THUMBNAIL_SIZE) || 300;
+    const thumbnailSize = parseInt(process.env.THUMBNAIL_SIZE) || 400;
     const thumbnailQuality = parseInt(process.env.THUMBNAIL_QUALITY) || 80;
 
     await sharp(filePath)
