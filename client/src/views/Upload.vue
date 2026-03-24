@@ -16,6 +16,7 @@
           list-type="picture-card"
           class="uploader"
           @change="handleFileChange"
+          @preview="handlePreview"
         >
           <div class="upload-content">
             <div class="upload-icon">
@@ -112,6 +113,16 @@
         </a-button>
       </div>
     </div>
+
+    <!-- 图片预览弹窗 -->
+    <a-modal
+      :open="previewVisible"
+      :title="previewTitle"
+      :footer="null"
+      @cancel="handlePreviewClose"
+    >
+      <img :src="previewImage" style="width: 100%" />
+    </a-modal>
   </div>
 </template>
 
@@ -383,11 +394,36 @@ function handleProgressEvent(data) {
   }
 }
 
+// 预览本地文件
+const previewVisible = ref(false)
+const previewImage = ref('')
+const previewTitle = ref('')
+
+function handlePreview(file) {
+  // 使用本地文件预览
+  if (file.originFileObj) {
+    previewImage.value = URL.createObjectURL(file.originFileObj)
+    previewTitle.value = file.name
+    previewVisible.value = true
+  }
+}
+
+function handlePreviewClose() {
+  previewVisible.value = false
+  previewTitle.value = ''
+  // 释放 blob URL
+  if (previewImage.value && previewImage.value.startsWith('blob:')) {
+    URL.revokeObjectURL(previewImage.value)
+  }
+  previewImage.value = ''
+}
+
 function handleClear() {
   allFiles.value = []
   uploadingItems.value = []
   showResult.value = false
   hasShownLimitWarning = false
+  handlePreviewClose()
 }
 </script>
 
