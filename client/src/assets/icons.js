@@ -14,6 +14,12 @@ export const menuIcons = {
     color: '#10b981'
   },
 
+  // 语义搜索 - 灯泡/大脑图标
+  semanticSearch: {
+    svgPath: '<path d="M12 2C8.13 2 5 5.13 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.87-3.13-7-7-7z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 21h6M10 17v4M14 17v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    color: '#f59e0b'
+  },
+
   // 上传图片 - 向上箭头图标
   upload: {
     svgPath: '<path d="M12 3v12m0-12l-4 4m4-4l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 17v2a2 2 0 002 2h14a2 2 0 002-2v-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',

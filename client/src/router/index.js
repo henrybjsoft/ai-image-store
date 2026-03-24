@@ -24,6 +24,11 @@ const routes = [
         component: () => import('@/views/Images.vue')
       },
       {
+        path: 'semantic-search',
+        name: 'SemanticSearch',
+        component: () => import('@/views/SemanticSearch.vue')
+      },
+      {
         path: 'upload',
         name: 'Upload',
         component: () => import('@/views/Upload.vue')

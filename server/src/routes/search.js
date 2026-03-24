@@ -57,7 +57,7 @@ router.get('/keyword', authenticateToken, (req, res) => {
 // 自然语言搜索（语义搜索）
 router.post('/semantic', authenticateToken, async (req, res) => {
   try {
-    const { query, page = 1, pageSize = 20 } = req.body;
+    const { query, topK = 20, page = 1, pageSize = 20 } = req.body;
 
     if (!query || query.trim() === '') {
       return res.status(400).json({
@@ -69,8 +69,8 @@ router.post('/semantic', authenticateToken, async (req, res) => {
     // 获取查询文本的向量
     const embedding = await getEmbedding(query);
 
-    // 搜索相似向量
-    const similarities = searchSimilar(embedding, parseInt(pageSize) * 2);
+    // 搜索相似向量，使用topK参数
+    const similarities = searchSimilar(embedding, parseInt(topK));
 
     if (similarities.length === 0) {
       return res.json({
@@ -80,7 +80,8 @@ router.post('/semantic', authenticateToken, async (req, res) => {
           total: 0,
           page: parseInt(page),
           pageSize: parseInt(pageSize),
-          query
+          query,
+          topK: parseInt(topK)
         }
       });
     }
@@ -90,11 +91,6 @@ router.post('/semantic', authenticateToken, async (req, res) => {
 
     // 获取图片详情并按相似度排序
     let images = SearchRepository.findByIdsSorted(imageIds, similarityMap);
-
-    // 分页
-    const total = images.length;
-    const offset = (parseInt(page) - 1) * parseInt(pageSize);
-    images = images.slice(offset, offset + parseInt(pageSize));
 
     // 获取每张图片的标签和相似度
     for (const image of images) {
@@ -110,14 +106,19 @@ router.post('/semantic', authenticateToken, async (req, res) => {
       }
     }
 
+    // 返回所有结果（前端处理分页和筛选）
     res.json({
       success: true,
       data: {
-        list: images,
-        total,
+        list: images.map(img => ({
+          image: img,
+          similarity: img.similarity
+        })),
+        total: images.length,
         page: parseInt(page),
         pageSize: parseInt(pageSize),
-        query
+        query,
+        topK: parseInt(topK)
       }
     });
   } catch (error) {

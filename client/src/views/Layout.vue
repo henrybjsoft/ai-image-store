@@ -158,6 +158,7 @@ const searchKeyword = ref('')
 const mainMenuItems = [
   { key: 'dashboard', name: '仪表盘', path: '/', ...menuIcons.dashboard },
   { key: 'images', name: '图片库', path: '/images', ...menuIcons.images },
+  { key: 'semanticSearch', name: '语义搜索', path: '/semantic-search', ...menuIcons.semanticSearch },
   { key: 'upload', name: '上传图片', path: '/upload', ...menuIcons.upload },
   { key: 'favorites', name: '我的收藏', path: '/favorites', ...menuIcons.favorites }
 ]
@@ -177,6 +178,7 @@ watch(
     const keyMap = {
       Dashboard: 'dashboard',
       Images: 'images',
+      SemanticSearch: 'semanticSearch',
       Upload: 'upload',
       Favorites: 'favorites',
       Categories: 'categories',

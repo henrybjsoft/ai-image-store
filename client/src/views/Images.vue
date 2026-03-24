@@ -35,9 +35,6 @@
             <SearchOutlined class="search-icon" @click="handleFilter" />
           </template>
         </a-input>
-        <a-button type="primary" class="semantic-btn" @click="showSemanticSearch = true">
-          <BulbOutlined /> 语义搜索
-        </a-button>
         <a-button class="reset-btn" @click="handleReset">
           <ReloadOutlined /> 重置
         </a-button>
@@ -267,21 +264,7 @@
       </div>
     </a-modal>
 
-    <!-- 语义搜索弹窗 -->
-    <a-modal
-      v-model:open="showSemanticSearch"
-      title="语义搜索"
-      @ok="handleSemanticSearch"
-      class="semantic-modal"
-    >
-      <p class="semantic-tip">使用自然语言描述你想要查找的图片</p>
-      <a-input
-        v-model:value="semanticQuery"
-        placeholder="例如：蓝色的风景照片、可爱的小动物..."
-        size="large"
-      />
-    </a-modal>
-  </div>
+    </div>
 </template>
 
 <script setup>
@@ -297,7 +280,6 @@ import {
   HeartFilled,
   DownloadOutlined,
   DeleteOutlined,
-  BulbOutlined,
   SyncOutlined,
   SearchOutlined,
   ReloadOutlined
@@ -320,8 +302,6 @@ const viewMode = ref('grid')
 const selectedIds = ref([])
 const previewVisible = ref(false)
 const previewImage = ref(null)
-const showSemanticSearch = ref(false)
-const semanticQuery = ref('')
 const reanalyzing = ref(false)
 
 // 全选相关计算属性
@@ -548,30 +528,6 @@ async function handleReanalyze(image) {
   }
 }
 
-async function handleSemanticSearch() {
-  if (!semanticQuery.value.trim()) {
-    message.warning('请输入搜索内容')
-    return
-  }
-
-  loading.value = true
-  try {
-    const res = await searchApi.semantic({
-      query: semanticQuery.value,
-      page: 1,
-      pageSize: pagination.pageSize
-    })
-    images.value = res.data?.list || []
-    pagination.total = res.data?.total || 0
-    pagination.current = 1
-    showSemanticSearch.value = false
-  } catch (error) {
-    message.error('搜索失败')
-  } finally {
-    loading.value = false
-  }
-}
-
 watch(() => pagination.current, () => loadImages())
 watch(() => pagination.pageSize, () => loadImages())
 
@@ -671,12 +627,6 @@ watch(() => route.query.keyword, (newKeyword) => {
 
 .filter-search .search-icon:hover {
   color: #6366f1;
-}
-
-.semantic-btn {
-  background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
-  border: none;
-  margin-left: 8px;
 }
 
 .reset-btn {
@@ -1115,15 +1065,6 @@ watch(() => route.query.keyword, (newKeyword) => {
 }
 
 /* 语义搜索 */
-.semantic-modal :deep(.ant-modal-body) {
-  padding: 24px;
-}
-
-.semantic-tip {
-  color: #64748b;
-  margin-bottom: 16px;
-}
-
 /* 空状态 */
 .empty-state {
   padding: 60px 20px;
