@@ -27,7 +27,8 @@
       "Bash(taskkill //F //PID 14100)",
       "Bash(tasklist)",
       "Bash(taskkill /PID 7708 /F)",
-      "Bash(taskkill //PID 7708 //F)"
+      "Bash(taskkill //PID 7708 //F)",
+      "Bash(taskkill //F //IM node.exe)"
     ]
   }
 }
