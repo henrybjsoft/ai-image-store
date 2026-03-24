@@ -221,14 +221,43 @@ async function initDatabase() {
     )
   `);
 
+  // 添加用户表新字段
+  const userColumns = db.exec("PRAGMA table_info(users)");
+  const userColumnNames = userColumns[0]?.values?.map(col => col[1]) || [];
+
+  if (!userColumnNames.includes('name')) {
+    database.exec('ALTER TABLE users ADD COLUMN name TEXT');
+  }
+  if (!userColumnNames.includes('description')) {
+    database.exec('ALTER TABLE users ADD COLUMN description TEXT');
+  }
+  if (!userColumnNames.includes('quota')) {
+    database.exec('ALTER TABLE users ADD COLUMN quota INTEGER DEFAULT 100');
+  }
+  if (!userColumnNames.includes('status')) {
+    database.exec('ALTER TABLE users ADD COLUMN status INTEGER DEFAULT 1');
+  }
+  if (!userColumnNames.includes('valid_from')) {
+    database.exec('ALTER TABLE users ADD COLUMN valid_from DATE');
+  }
+  if (!userColumnNames.includes('valid_until')) {
+    database.exec('ALTER TABLE users ADD COLUMN valid_until DATE');
+  }
+  if (!userColumnNames.includes('role')) {
+    database.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'");
+  }
+
   // 初始化默认管理员账号
   const adminExists = database.prepare('SELECT id FROM users WHERE username = ?').get('admin');
   if (!adminExists) {
     const passwordHash = await bcrypt.hash('admin123', 10);
     database.prepare(
-      'INSERT INTO users (username, password_hash) VALUES (?, ?)'
-    ).run('admin', passwordHash);
+      "INSERT INTO users (username, password_hash, name, role, status, quota) VALUES (?, ?, ?, 'admin', 1, 0)"
+    ).run('admin', passwordHash, '系统管理员');
     console.log('默认管理员账号已创建: admin / admin123');
+  } else {
+    // 确保 admin 用户有正确的 role
+    database.prepare("UPDATE users SET role = 'admin' WHERE username = 'admin' AND (role IS NULL OR role != 'admin')").run();
   }
 
   // 初始化默认分类

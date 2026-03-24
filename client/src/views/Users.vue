@@ -3,34 +3,69 @@
     <div class="page-header">
       <div class="header-content">
         <h2>用户管理</h2>
-        <p>管理系统管理员账号</p>
+        <p>管理系统用户账号和权限</p>
       </div>
       <a-button type="primary" @click="showAddModal">
         <PlusOutlined /> 添加用户
       </a-button>
     </div>
 
-    <div class="users-grid">
-      <div v-for="user in users" :key="user.id" class="user-card">
-        <div class="user-avatar">
-          {{ user.username.charAt(0).toUpperCase() }}
-        </div>
-        <div class="user-info">
-          <div class="user-name">{{ user.username }}</div>
-          <div class="user-date">创建于 {{ formatDate(user.created_at) }}</div>
-        </div>
-        <div class="user-actions">
-          <a-button size="small" @click="showPasswordModal(user)">修改密码</a-button>
-          <a-button size="small" @click="showEditModal(user)">编辑</a-button>
-          <a-popconfirm
-            title="确定删除此用户？"
-            @confirm="handleDelete(user)"
-            :disabled="user.id === currentUserId"
-          >
-            <a-button size="small" danger :disabled="user.id === currentUserId">删除</a-button>
-          </a-popconfirm>
-        </div>
-      </div>
+    <div class="users-table">
+      <a-table :columns="columns" :data-source="users" :loading="loading" row-key="id">
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'username'">
+            <div class="user-cell">
+              <div class="user-avatar-small">
+                {{ (record.name || record.username).charAt(0).toUpperCase() }}
+              </div>
+              <div>
+                <div class="user-name">{{ record.name || record.username }}</div>
+                <div class="user-login-name">@{{ record.username }}</div>
+              </div>
+            </div>
+          </template>
+          <template v-else-if="column.key === 'role'">
+            <a-tag :color="record.role === 'admin' ? 'purple' : 'blue'">
+              {{ record.role === 'admin' ? '管理员' : '普通用户' }}
+            </a-tag>
+          </template>
+          <template v-else-if="column.key === 'status'">
+            <a-tag :color="record.status ? 'green' : 'red'">
+              {{ record.status ? '可用' : '禁用' }}
+            </a-tag>
+          </template>
+          <template v-else-if="column.key === 'validity'">
+            <div class="validity-cell">
+              <div v-if="record.valid_from || record.valid_until">
+                <span v-if="record.valid_from">{{ record.valid_from }}</span>
+                <span v-else>不限</span>
+                ~
+                <span v-if="record.valid_until">{{ record.valid_until }}</span>
+                <span v-else>不限</span>
+              </div>
+              <span v-else class="text-gray">不限制</span>
+            </div>
+          </template>
+          <template v-else-if="column.key === 'quota'">
+            <span :class="{ 'text-warning': record.imageCount >= record.quota && record.quota > 0 }">
+              {{ record.imageCount }} / {{ record.quota === 0 ? '不限' : record.quota }}
+            </span>
+          </template>
+          <template v-else-if="column.key === 'actions'">
+            <div class="action-buttons">
+              <a-button size="small" @click="showEditModal(record)">编辑</a-button>
+              <a-button size="small" @click="showPasswordModal(record)">改密</a-button>
+              <a-popconfirm
+                v-if="record.username !== 'admin'"
+                title="确定删除此用户？"
+                @confirm="handleDelete(record)"
+              >
+                <a-button size="small" danger>删除</a-button>
+              </a-popconfirm>
+            </div>
+          </template>
+        </template>
+      </a-table>
     </div>
 
     <!-- 添加/编辑用户弹窗 -->
@@ -38,13 +73,69 @@
       v-model:open="modalVisible"
       :title="editingUser ? '编辑用户' : '添加用户'"
       @ok="handleSubmit"
+      width="600px"
     >
-      <a-form layout="vertical">
-        <a-form-item label="用户名" required>
-          <a-input v-model:value="formState.username" placeholder="请输入用户名" size="large" />
-        </a-form-item>
+      <a-form layout="vertical" :model="formState">
+        <a-row :gutter="16">
+          <a-col :span="12">
+            <a-form-item label="用户名" required>
+              <a-input
+                v-model:value="formState.username"
+                placeholder="请输入用户名"
+                :disabled="editingUser?.username === 'admin'"
+              />
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item label="用户名称">
+              <a-input v-model:value="formState.name" placeholder="显示名称" />
+            </a-form-item>
+          </a-col>
+        </a-row>
+
         <a-form-item v-if="!editingUser" label="密码" required>
-          <a-input-password v-model:value="formState.password" placeholder="请输入密码（至少6位）" size="large" />
+          <a-input-password v-model:value="formState.password" placeholder="请输入密码（至少6位）" />
+        </a-form-item>
+
+        <a-form-item label="说明">
+          <a-textarea v-model:value="formState.description" placeholder="用户说明/备注" :rows="2" />
+        </a-form-item>
+
+        <a-row :gutter="16" v-if="editingUser?.username !== 'admin'">
+          <a-col :span="12">
+            <a-form-item label="用户类型">
+              <a-select v-model:value="formState.role">
+                <a-select-option value="admin">管理员</a-select-option>
+                <a-select-option value="user">普通用户</a-select-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item label="可用状态">
+              <a-select v-model:value="formState.status">
+                <a-select-option :value="1">可用</a-select-option>
+                <a-select-option :value="0">禁用</a-select-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+        </a-row>
+
+        <a-row :gutter="16" v-if="editingUser?.username !== 'admin'">
+          <a-col :span="12">
+            <a-form-item label="生效日期">
+              <a-date-picker v-model:value="formState.validFrom" style="width: 100%" />
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item label="失效日期">
+              <a-date-picker v-model:value="formState.validUntil" style="width: 100%" />
+            </a-form-item>
+          </a-col>
+        </a-row>
+
+        <a-form-item v-if="editingUser?.username !== 'admin'" label="上传限额">
+          <a-input-number v-model:value="formState.quota" :min="0" style="width: 200px" />
+          <span class="quota-hint">（0表示不限制）</span>
         </a-form-item>
       </a-form>
     </a-modal>
@@ -57,10 +148,10 @@
     >
       <a-form layout="vertical">
         <a-form-item label="新密码" required>
-          <a-input-password v-model:value="passwordForm.password" placeholder="请输入新密码（至少6位）" size="large" />
+          <a-input-password v-model:value="passwordForm.password" placeholder="请输入新密码（至少6位）" />
         </a-form-item>
         <a-form-item label="确认密码" required>
-          <a-input-password v-model:value="passwordForm.confirmPassword" placeholder="请再次输入新密码" size="large" />
+          <a-input-password v-model:value="passwordForm.confirmPassword" placeholder="请再次输入新密码" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -68,15 +159,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { userApi } from '@/api/user'
-import { useUserStore } from '@/stores/user'
 import dayjs from 'dayjs'
-
-const userStore = useUserStore()
-const currentUserId = computed(() => userStore.user?.id)
 
 const loading = ref(false)
 const users = ref([])
@@ -84,9 +171,25 @@ const modalVisible = ref(false)
 const passwordModalVisible = ref(false)
 const editingUser = ref(null)
 
+const columns = [
+  { title: '用户', key: 'username', width: 180 },
+  { title: '类型', key: 'role', width: 100 },
+  { title: '状态', key: 'status', width: 80 },
+  { title: '有效期', key: 'validity', width: 180 },
+  { title: '图片限额', key: 'quota', width: 100 },
+  { title: '操作', key: 'actions', width: 180 }
+]
+
 const formState = reactive({
   username: '',
-  password: ''
+  password: '',
+  name: '',
+  description: '',
+  role: 'user',
+  status: 1,
+  quota: 100,
+  validFrom: null,
+  validUntil: null
 })
 
 const passwordForm = reactive({
@@ -110,15 +213,33 @@ async function loadUsers() {
 
 function showAddModal() {
   editingUser.value = null
-  formState.username = ''
-  formState.password = ''
+  Object.assign(formState, {
+    username: '',
+    password: '',
+    name: '',
+    description: '',
+    role: 'user',
+    status: 1,
+    quota: 100,
+    validFrom: null,
+    validUntil: null
+  })
   modalVisible.value = true
 }
 
 function showEditModal(user) {
   editingUser.value = user
-  formState.username = user.username
-  formState.password = ''
+  Object.assign(formState, {
+    username: user.username,
+    password: '',
+    name: user.name || '',
+    description: user.description || '',
+    role: user.role || 'user',
+    status: user.status !== undefined ? user.status : 1,
+    quota: user.quota !== undefined ? user.quota : 100,
+    validFrom: user.valid_from ? dayjs(user.valid_from) : null,
+    validUntil: user.valid_until ? dayjs(user.valid_until) : null
+  })
   modalVisible.value = true
 }
 
@@ -141,14 +262,27 @@ async function handleSubmit() {
   }
 
   try {
+    const data = {
+      username: formState.username,
+      name: formState.name,
+      description: formState.description
+    }
+
+    // admin 用户只能修改名称和说明
+    if (editingUser.value?.username !== 'admin') {
+      data.role = formState.role
+      data.status = formState.status
+      data.quota = formState.quota
+      data.validFrom = formState.validFrom ? formState.validFrom.format('YYYY-MM-DD') : null
+      data.validUntil = formState.validUntil ? formState.validUntil.format('YYYY-MM-DD') : null
+    }
+
     if (editingUser.value) {
-      await userApi.update(editingUser.value.id, { username: formState.username })
+      await userApi.update(editingUser.value.id, data)
       message.success('用户更新成功')
     } else {
-      await userApi.create({
-        username: formState.username,
-        password: formState.password
-      })
+      data.password = formState.password
+      await userApi.create(data)
       message.success('用户创建成功')
     }
     modalVisible.value = false
@@ -174,7 +308,7 @@ async function handlePasswordSubmit() {
     message.success('密码修改成功')
     passwordModalVisible.value = false
   } catch (error) {
-    message.error('修改失败')
+    message.error(error.response?.data?.message || '修改失败')
   }
 }
 
@@ -186,10 +320,6 @@ async function handleDelete(user) {
   } catch (error) {
     message.error(error.response?.data?.message || '删除失败')
   }
-}
-
-function formatDate(date) {
-  return dayjs(date).format('YYYY-MM-DD')
 }
 </script>
 
@@ -217,61 +347,64 @@ function formatDate(date) {
   font-size: 14px;
 }
 
-.users-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
-}
-
-.user-card {
+.users-table {
   background: white;
   border-radius: 16px;
   padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.user-cell {
   display: flex;
   align-items: center;
-  gap: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
+  gap: 12px;
 }
 
-.user-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
-}
-
-.user-avatar {
-  width: 56px;
-  height: 56px;
+.user-avatar-small {
+  width: 36px;
+  height: 36px;
   background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  border-radius: 14px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  font-size: 24px;
+  font-size: 14px;
   font-weight: 600;
-}
-
-.user-info {
-  flex: 1;
 }
 
 .user-name {
-  font-size: 16px;
-  font-weight: 600;
+  font-weight: 500;
   color: #1e293b;
-  margin-bottom: 4px;
 }
 
-.user-date {
-  font-size: 13px;
+.user-login-name {
+  font-size: 12px;
   color: #94a3b8;
 }
 
-.user-actions {
+.validity-cell {
+  font-size: 13px;
+}
+
+.text-gray {
+  color: #94a3b8;
+}
+
+.text-warning {
+  color: #f59e0b;
+  font-weight: 500;
+}
+
+.action-buttons {
   display: flex;
-  flex-direction: column;
   gap: 8px;
+}
+
+.quota-hint {
+  margin-left: 8px;
+  color: #94a3b8;
+  font-size: 12px;
 }
 
 @keyframes fadeIn {

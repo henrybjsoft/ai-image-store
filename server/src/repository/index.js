@@ -20,17 +20,41 @@ const UserRepository = {
     return db.prepare('SELECT * FROM users WHERE username = ?').get(username);
   },
 
-  // 获取所有用户
+  // 获取所有用户（含新字段）
   findAll() {
     const db = getDatabase();
-    return db.prepare('SELECT id, username, created_at, updated_at FROM users ORDER BY id').all();
+    return db.prepare(`
+      SELECT id, username, name, description, role, status, quota, valid_from, valid_until, created_at, updated_at
+      FROM users ORDER BY id
+    `).all();
   },
 
-  // 创建用户
-  create(username, passwordHash) {
+  // 获取用户的图片数量（不含已删除）
+  getImageCount(userId) {
     const db = getDatabase();
-    const result = db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)').run(username, passwordHash);
+    const result = db.prepare('SELECT COUNT(*) as count FROM images WHERE uploaded_by = ? AND is_deleted = 0').get(userId);
+    return result?.count || 0;
+  },
+
+  // 创建用户（支持新字段）
+  create(data) {
+    const db = getDatabase();
+    const { username, passwordHash, name, description, role, status, quota, validFrom, validUntil } = data;
+    const result = db.prepare(`
+      INSERT INTO users (username, password_hash, name, description, role, status, quota, valid_from, valid_until)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(username, passwordHash, name || null, description || null, role || 'user', status !== undefined ? status : 1, quota !== undefined ? quota : 100, validFrom || null, validUntil || null);
     return { id: result.lastInsertRowid, username };
+  },
+
+  // 更新用户信息（支持新字段）
+  update(id, data) {
+    const db = getDatabase();
+    const { username, name, description, role, status, quota, validFrom, validUntil } = data;
+    db.prepare(`
+      UPDATE users SET username = ?, name = ?, description = ?, role = ?, status = ?, quota = ?, valid_from = ?, valid_until = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(username, name || null, description || null, role || 'user', status !== undefined ? status : 1, quota !== undefined ? quota : 100, validFrom || null, validUntil || null, id);
   },
 
   // 更新用户名
@@ -43,6 +67,12 @@ const UserRepository = {
   updatePassword(id, passwordHash) {
     const db = getDatabase();
     db.prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(passwordHash, id);
+  },
+
+  // 更新用户名称和说明（用于admin用户的受限更新）
+  updateNameAndDescription(id, name, description) {
+    const db = getDatabase();
+    db.prepare('UPDATE users SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(name || null, description || null, id);
   },
 
   // 删除用户

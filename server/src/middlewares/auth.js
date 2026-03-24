@@ -22,9 +22,9 @@ function authenticateToken(req, res, next) {
       });
     }
 
-    // 验证用户是否存在
+    // 验证用户是否存在，并获取完整信息
     const db = getDatabase();
-    const userRecord = db.prepare('SELECT id, username FROM users WHERE id = ?').get(user.userId);
+    const userRecord = db.prepare('SELECT id, username, name, role, status FROM users WHERE id = ?').get(user.userId);
 
     if (!userRecord) {
       return res.status(403).json({
@@ -38,11 +38,23 @@ function authenticateToken(req, res, next) {
   });
 }
 
+// 要求管理员权限
+function requireAdmin(req, res, next) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      message: '权限不足，需要管理员权限'
+    });
+  }
+  next();
+}
+
 function generateToken(userId) {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
 }
 
 module.exports = {
   authenticateToken,
+  requireAdmin,
   generateToken
 };

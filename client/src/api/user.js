@@ -23,5 +23,9 @@ export const userApi = {
 
   delete(id) {
     return request.delete(`/users/${id}`)
+  },
+
+  getQuotaInfo() {
+    return request.get('/users/quota')
   }
 }

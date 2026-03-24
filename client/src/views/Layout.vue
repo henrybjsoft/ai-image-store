@@ -166,7 +166,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore, themes } from '@/stores/theme'
@@ -206,13 +206,22 @@ const mainMenuItems = [
   { key: 'favorites', name: '我的收藏', path: '/favorites', ...menuIcons.favorites }
 ]
 
-const manageMenuItems = [
-  { key: 'categories', name: '分类管理', path: '/categories', ...menuIcons.categories },
-  { key: 'tags', name: '标签管理', path: '/tags', ...menuIcons.tags },
-  { key: 'trash', name: '回收站', path: '/trash', ...menuIcons.trash },
-  { key: 'logs', name: '操作日志', path: '/logs', ...menuIcons.logs },
-  { key: 'users', name: '用户管理', path: '/users', ...menuIcons.users }
-]
+// 根据用户角色过滤管理菜单
+const manageMenuItems = computed(() => {
+  const items = [
+    { key: 'categories', name: '分类管理', path: '/categories', ...menuIcons.categories },
+    { key: 'tags', name: '标签管理', path: '/tags', ...menuIcons.tags },
+    { key: 'trash', name: '回收站', path: '/trash', ...menuIcons.trash }
+  ]
+
+  // 仅管理员可见
+  if (userStore.isAdmin) {
+    items.push({ key: 'logs', name: '操作日志', path: '/logs', ...menuIcons.logs })
+    items.push({ key: 'users', name: '用户管理', path: '/users', ...menuIcons.users })
+  }
+
+  return items
+})
 
 // 监听路由变化
 watch(

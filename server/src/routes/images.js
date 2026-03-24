@@ -5,8 +5,8 @@ const fs = require('fs');
 const sharp = require('sharp');
 const { v4: uuidv4 } = require('uuid');
 const archiver = require('archiver');
-const { ImageRepository, TagRepository, CategoryRepository, LogRepository } = require('../repository');
-const { authenticateToken } = require('../middlewares/auth');
+const { ImageRepository, TagRepository, CategoryRepository, LogRepository, UserRepository } = require('../repository');
+const { authenticateToken, requireAdmin } = require('../middlewares/auth');
 const { processImageWithAI, getEmbedding } = require('../services/aiService');
 const { addImageVector, removeImageVector, buildEmbeddingText } = require('../services/vectorService');
 
@@ -145,6 +145,21 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
         success: false,
         message: '没有上传文件'
       });
+    }
+
+    // 检查上传限额（普通用户）
+    if (req.user.role !== 'admin') {
+      const user = UserRepository.findById(req.user.id);
+      const quota = user.quota || 0;
+      if (quota > 0) {
+        const currentCount = UserRepository.getImageCount(req.user.id);
+        if (currentCount + req.files.length > quota) {
+          return res.status(400).json({
+            success: false,
+            message: `上传数量超出限额。当前已上传 ${currentCount} 张，限额 ${quota} 张，本次上传 ${req.files.length} 张`
+          });
+        }
+      }
     }
 
     // 解析可选的分类和标签
@@ -555,6 +570,14 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       });
     }
 
+    // 普通用户只能删除自己上传的图片
+    if (req.user.role !== 'admin' && image.uploaded_by !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: '权限不足，只能删除自己上传的图片'
+      });
+    }
+
     ImageRepository.softDelete(id);
 
     LogRepository.create(req.user.id, 'delete_image', 'image', id, `删除图片: ${image.original_name}`, req.ip);
@@ -582,6 +605,18 @@ router.post('/batch-delete', authenticateToken, async (req, res) => {
         success: false,
         message: '请选择要删除的图片'
       });
+    }
+
+    // 普通用户只能删除自己上传的图片
+    if (req.user.role !== 'admin') {
+      const images = ImageRepository.findByIds(ids);
+      const notOwned = images.filter(img => img.uploaded_by !== req.user.id);
+      if (notOwned.length > 0) {
+        return res.status(403).json({
+          success: false,
+          message: '权限不足，只能删除自己上传的图片'
+        });
+      }
     }
 
     ImageRepository.softDeleteBatch(ids);
@@ -804,8 +839,8 @@ router.delete('/:id/tags/:tagId', authenticateToken, async (req, res) => {
   }
 });
 
-// 重新识别图片（AI重新生成描述和关键词）
-router.post('/:id/reanalyze', authenticateToken, async (req, res) => {
+// 重新识别图片（AI重新生成描述和关键词）- 仅管理员
+router.post('/:id/reanalyze', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 

@@ -5,6 +5,28 @@ const { authenticateToken, generateToken } = require('../middlewares/auth');
 
 const router = express.Router();
 
+// 检查用户有效期
+function checkUserValidity(user) {
+  // 检查状态
+  if (user.status === 0) {
+    return { valid: false, message: '账号已被禁用，请联系管理员' };
+  }
+
+  // 检查有效期
+  const now = new Date();
+  const today = now.toISOString().split('T')[0]; // YYYY-MM-DD
+
+  if (user.valid_from && today < user.valid_from) {
+    return { valid: false, message: '账号尚未生效，生效日期：' + user.valid_from };
+  }
+
+  if (user.valid_until && today > user.valid_until) {
+    return { valid: false, message: '账号已过期，失效日期：' + user.valid_until };
+  }
+
+  return { valid: true };
+}
+
 // 登录
 router.post('/login', async (req, res) => {
   try {
@@ -34,6 +56,15 @@ router.post('/login', async (req, res) => {
       });
     }
 
+    // 检查用户状态和有效期
+    const validity = checkUserValidity(user);
+    if (!validity.valid) {
+      return res.status(403).json({
+        success: false,
+        message: validity.message
+      });
+    }
+
     const token = generateToken(user.id);
 
     // 记录登录日志
@@ -45,7 +76,9 @@ router.post('/login', async (req, res) => {
         token,
         user: {
           id: user.id,
-          username: user.username
+          username: user.username,
+          name: user.name,
+          role: user.role
         }
       }
     });

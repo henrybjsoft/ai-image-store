@@ -3,9 +3,9 @@
     <div class="page-header">
       <div class="header-content">
         <h2>标签管理</h2>
-        <p>管理图片标签，便于快速筛选</p>
+        <p>{{ userStore.isAdmin ? '管理图片标签，便于快速筛选' : '查看图片标签' }}</p>
       </div>
-      <a-button type="primary" @click="showAddModal">
+      <a-button v-if="userStore.isAdmin" type="primary" @click="showAddModal">
         <PlusOutlined /> 添加标签
       </a-button>
     </div>
@@ -21,7 +21,7 @@
             <div class="tag-count">{{ tag.image_count || 0 }} 张图片</div>
           </div>
         </div>
-        <div class="tag-actions">
+        <div v-if="userStore.isAdmin" class="tag-actions">
           <a-button type="text" size="small" @click="showEditModal(tag)">
             <EditOutlined />
           </a-button>
@@ -39,7 +39,7 @@
         <TagOutlined />
       </div>
       <h3>暂无标签</h3>
-      <p>创建标签以便对图片进行分类</p>
+      <p v-if="userStore.isAdmin">创建标签以便对图片进行分类</p>
     </div>
 
     <!-- 添加/编辑弹窗 -->
@@ -62,6 +62,9 @@ import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined, TagOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons-vue'
 import { tagApi } from '@/api/tag'
+import { useUserStore } from '@/stores/user'
+
+const userStore = useUserStore()
 
 const loading = ref(false)
 const tags = ref([])

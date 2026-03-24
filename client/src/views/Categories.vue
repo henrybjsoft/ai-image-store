@@ -3,9 +3,9 @@
     <div class="page-header">
       <div class="header-content">
         <h2>分类管理</h2>
-        <p>管理图片分类，支持两级结构</p>
+        <p>{{ userStore.isAdmin ? '管理图片分类，支持两级结构' : '查看图片分类' }}</p>
       </div>
-      <a-button type="primary" @click="showAddModal(null)">
+      <a-button v-if="userStore.isAdmin" type="primary" @click="showAddModal(null)">
         <PlusOutlined /> 添加分类
       </a-button>
     </div>
@@ -17,7 +17,7 @@
             <FolderOutlined />
           </div>
           <div class="category-title">{{ category.name }}</div>
-          <div class="category-actions">
+          <div v-if="userStore.isAdmin" class="category-actions">
             <a-button type="text" size="small" @click="showAddModal(category)">
               <PlusOutlined />
             </a-button>
@@ -34,7 +34,7 @@
         <div v-if="category.children?.length" class="subcategory-list">
           <div v-for="child in category.children" :key="child.id" class="subcategory-item">
             <span class="subcategory-name">{{ child.name }}</span>
-            <div class="subcategory-actions">
+            <div v-if="userStore.isAdmin" class="subcategory-actions">
               <a-button type="text" size="small" @click="showEditModal(child)">
                 <EditOutlined />
               </a-button>
@@ -76,6 +76,9 @@ import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined, FolderOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons-vue'
 import { categoryApi } from '@/api/category'
+import { useUserStore } from '@/stores/user'
+
+const userStore = useUserStore()
 
 const loading = ref(false)
 const categories = ref([])

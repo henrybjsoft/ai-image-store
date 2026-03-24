@@ -4,6 +4,9 @@
       <div class="upload-header">
         <h2>上传图片</h2>
         <p>支持 JPG、PNG、WebP、GIF、SVG 格式，单张不超过 10MB，单次最多 20 张</p>
+        <p v-if="userStore.user?.role !== 'admin' && quotaInfo.quota > 0" class="quota-info">
+          已上传 {{ quotaInfo.imageCount }} / {{ quotaInfo.quota }} 张（剩余 {{ quotaInfo.quota - quotaInfo.imageCount }} 张）
+        </p>
       </div>
 
       <!-- 可选设置 -->
@@ -174,12 +177,19 @@ import {
 import { getToken } from '@/utils/auth'
 import { categoryApi } from '@/api/category'
 import { tagApi } from '@/api/tag'
+import { userApi } from '@/api/user'
+import { useUserStore } from '@/stores/user'
+
+const userStore = useUserStore()
 
 // 所有文件列表（包含有效和无效）
 const allFiles = ref([])
 const uploading = ref(false)
 const uploadingItems = ref([])
 const showResult = ref(false)
+
+// 配额信息
+const quotaInfo = ref({ quota: 0, imageCount: 0, role: 'user' })
 
 // 可选设置
 const categories = ref([])
@@ -241,6 +251,7 @@ const failedCount = computed(() => {
 
 onMounted(async () => {
   await loadOptions()
+  await loadQuotaInfo()
 })
 
 async function loadOptions() {
@@ -253,6 +264,17 @@ async function loadOptions() {
     tags.value = tagRes.data || []
   } catch (error) {
     console.error('加载选项失败:', error)
+  }
+}
+
+async function loadQuotaInfo() {
+  if (userStore.user?.role !== 'admin') {
+    try {
+      const res = await userApi.getQuotaInfo()
+      quotaInfo.value = res.data
+    } catch (error) {
+      console.error('加载配额信息失败:', error)
+    }
   }
 }
 
@@ -537,6 +559,12 @@ function handleClear() {
 .upload-header p {
   color: #64748b;
   font-size: 14px;
+}
+
+.quota-info {
+  margin-top: 8px;
+  color: #6366f1;
+  font-weight: 500;
 }
 
 /* 可选设置 */

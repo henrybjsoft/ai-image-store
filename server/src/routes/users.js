@@ -1,21 +1,50 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { UserRepository, LogRepository } = require('../repository');
-const { authenticateToken } = require('../middlewares/auth');
+const { authenticateToken, requireAdmin } = require('../middlewares/auth');
 
 const router = express.Router();
 
 // 所有用户路由都需要认证
 router.use(authenticateToken);
 
-// 获取用户列表
-router.get('/', (req, res) => {
+// 获取当前用户配额信息
+router.get('/quota', (req, res) => {
   try {
-    const users = UserRepository.findAll();
+    const user = UserRepository.findById(req.user.id);
+    const imageCount = UserRepository.getImageCount(req.user.id);
 
     res.json({
       success: true,
-      data: users
+      data: {
+        quota: user.quota || 0,
+        imageCount,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('获取配额信息错误:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取配额信息失败'
+    });
+  }
+});
+
+// 获取用户列表（仅管理员）
+router.get('/', requireAdmin, (req, res) => {
+  try {
+    const users = UserRepository.findAll();
+
+    // 为每个用户添加图片数量
+    const usersWithCount = users.map(user => ({
+      ...user,
+      imageCount: UserRepository.getImageCount(user.id)
+    }));
+
+    res.json({
+      success: true,
+      data: usersWithCount
     });
   } catch (error) {
     console.error('获取用户列表错误:', error);
@@ -26,10 +55,10 @@ router.get('/', (req, res) => {
   }
 });
 
-// 创建用户
-router.post('/', async (req, res) => {
+// 创建用户（仅管理员）
+router.post('/', requireAdmin, async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password, name, description, role, status, quota, validFrom, validUntil } = req.body;
 
     if (!username || !password) {
       return res.status(400).json({
@@ -61,7 +90,17 @@ router.post('/', async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = UserRepository.create(username, passwordHash);
+    const user = UserRepository.create({
+      username,
+      passwordHash,
+      name,
+      description,
+      role: role || 'user',
+      status: status !== undefined ? status : 1,
+      quota: quota !== undefined ? quota : 100,
+      validFrom,
+      validUntil
+    });
 
     LogRepository.create(req.user.id, 'create_user', 'user', user.id, `创建用户: ${username}`, req.ip);
 
@@ -79,18 +118,11 @@ router.post('/', async (req, res) => {
   }
 });
 
-// 更新用户信息
-router.put('/:id', async (req, res) => {
+// 更新用户信息（仅管理员）
+router.put('/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { username } = req.body;
-
-    if (!username) {
-      return res.status(400).json({
-        success: false,
-        message: '用户名不能为空'
-      });
-    }
+    const { username, name, description, role, status, quota, validFrom, validUntil } = req.body;
 
     // 检查用户是否存在
     const user = UserRepository.findById(id);
@@ -98,6 +130,30 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({
         success: false,
         message: '用户不存在'
+      });
+    }
+
+    // admin 用户特殊处理
+    if (user.username === 'admin') {
+      // admin 用户只能修改名称和说明
+      if (username && username !== 'admin') {
+        return res.status(400).json({
+          success: false,
+          message: 'admin 用户名不可修改'
+        });
+      }
+      UserRepository.updateNameAndDescription(id, name, description);
+      LogRepository.create(req.user.id, 'update_user', 'user', id, `更新admin用户信息`, req.ip);
+      return res.json({
+        success: true,
+        message: '用户信息更新成功'
+      });
+    }
+
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        message: '用户名不能为空'
       });
     }
 
@@ -109,9 +165,18 @@ router.put('/:id', async (req, res) => {
       });
     }
 
-    UserRepository.updateUsername(id, username);
+    UserRepository.update(id, {
+      username,
+      name,
+      description,
+      role: role || 'user',
+      status: status !== undefined ? status : 1,
+      quota: quota !== undefined ? quota : 100,
+      validFrom,
+      validUntil
+    });
 
-    LogRepository.create(req.user.id, 'update_user', 'user', id, `更新用户名: ${username}`, req.ip);
+    LogRepository.create(req.user.id, 'update_user', 'user', id, `更新用户: ${username}`, req.ip);
 
     res.json({
       success: true,
@@ -182,8 +247,8 @@ router.put('/me/password', async (req, res) => {
   }
 });
 
-// 修改密码（管理员修改其他用户）
-router.put('/:id/password', async (req, res) => {
+// 修改密码（管理员重置其他用户密码）
+router.put('/:id/password', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { password } = req.body;
@@ -207,7 +272,7 @@ router.put('/:id/password', async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10);
     UserRepository.updatePassword(id, passwordHash);
 
-    LogRepository.create(req.user.id, 'change_password', 'user', id, `修改用户密码: ${user.username}`, req.ip);
+    LogRepository.create(req.user.id, 'change_password', 'user', id, `重置用户密码: ${user.username}`, req.ip);
 
     res.json({
       success: true,
@@ -222,25 +287,32 @@ router.put('/:id/password', async (req, res) => {
   }
 });
 
-// 删除用户
-router.delete('/:id', async (req, res) => {
+// 删除用户（仅管理员）
+router.delete('/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
+
+    // 不能删除admin用户
+    const user = UserRepository.findById(id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: '用户不存在'
+      });
+    }
+
+    if (user.username === 'admin') {
+      return res.status(400).json({
+        success: false,
+        message: 'admin 用户不可删除'
+      });
+    }
 
     // 不能删除自己
     if (parseInt(id) === req.user.id) {
       return res.status(400).json({
         success: false,
         message: '不能删除自己的账号'
-      });
-    }
-
-    const user = UserRepository.findById(id);
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: '用户不存在'
       });
     }
 
