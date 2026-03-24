@@ -1,21 +1,21 @@
 <template>
   <div class="images-page">
-    <!-- 筛选栏 -->
+    <!-- 顶部筛选栏 -->
     <div class="filter-bar">
-      <a-space>
+      <div class="filter-left">
         <a-tree-select
           v-model:value="selectedCategory"
           :tree-data="categoryTree"
           placeholder="选择分类"
           allow-clear
-          style="width: 200px"
+          class="filter-select"
           @change="handleFilter"
         />
         <a-select
           v-model:value="selectedTag"
           placeholder="选择标签"
           allow-clear
-          style="width: 150px"
+          class="filter-select small"
           @change="handleFilter"
         >
           <a-select-option v-for="tag in tags" :key="tag.id" :value="tag.id">
@@ -24,30 +24,49 @@
         </a-select>
         <a-input-search
           v-model:value="keyword"
-          placeholder="关键字搜索"
-          style="width: 200px"
+          placeholder="搜索..."
+          class="filter-search"
           @search="handleFilter"
         />
-        <a-button type="primary" @click="showSemanticSearch = true">
-          语义搜索
+        <a-button type="primary" class="semantic-btn" @click="showSemanticSearch = true">
+          <BulbOutlined /> 语义搜索
         </a-button>
-      </a-space>
+      </div>
 
-      <a-space>
-        <a-button @click="toggleViewMode">
-          <template #icon>
-            <AppstoreOutlined v-if="viewMode === 'list'" />
-            <UnorderedListOutlined v-else />
-          </template>
-          {{ viewMode === 'grid' ? '列表' : '网格' }}
+      <div class="filter-right">
+        <div class="view-toggle">
+          <div
+            class="toggle-btn"
+            :class="{ active: viewMode === 'grid' }"
+            @click="viewMode = 'grid'"
+          >
+            <AppstoreOutlined />
+          </div>
+          <div
+            class="toggle-btn"
+            :class="{ active: viewMode === 'list' }"
+            @click="viewMode = 'list'"
+          >
+            <UnorderedListOutlined />
+          </div>
+        </div>
+        <a-button
+          type="primary"
+          :disabled="selectedIds.length === 0"
+          class="action-btn"
+          @click="handleBatchDownload"
+        >
+          <DownloadOutlined /> 下载 ({{ selectedIds.length }})
         </a-button>
-        <a-button type="primary" :disabled="selectedIds.length === 0" @click="handleBatchDownload">
-          <DownloadOutlined /> 批量下载 ({{ selectedIds.length }})
+        <a-button
+          danger
+          :disabled="selectedIds.length === 0"
+          class="action-btn danger"
+          @click="handleBatchDelete"
+        >
+          <DeleteOutlined /> 删除
         </a-button>
-        <a-button danger :disabled="selectedIds.length === 0" @click="handleBatchDelete">
-          <DeleteOutlined /> 批量删除 ({{ selectedIds.length }})
-        </a-button>
-      </a-space>
+      </div>
     </div>
 
     <!-- 图片网格 -->
@@ -57,94 +76,92 @@
         :key="image.id"
         class="image-card"
         :class="{ selected: selectedIds.includes(image.id) }"
-        @click="handleImageClick(image)"
       >
-        <div class="image-wrapper">
-          <a-checkbox
-            :checked="selectedIds.includes(image.id)"
-            @click.stop="toggleSelect(image.id)"
-            class="image-checkbox"
-          />
-          <a-image
-            :src="getImageUrl(image)"
-            :preview="false"
-            class="image-thumb"
-          />
+        <div class="image-checkbox" @click.stop="toggleSelect(image.id)">
+          <a-checkbox :checked="selectedIds.includes(image.id)" />
+        </div>
+        <div class="image-wrapper" @click="handlePreview(image)">
+          <img :src="getImageUrl(image)" :alt="image.original_name" />
           <div class="image-overlay">
-            <a-space>
-              <a-button type="text" size="small" @click.stop="handlePreview(image)">
-                <EyeOutlined />
-              </a-button>
-              <a-button type="text" size="small" @click.stop="handleFavorite(image)">
-                <HeartFilled v-if="image.is_favorite" style="color: #f5222d" />
+            <div class="overlay-actions">
+              <div class="action-item" @click.stop="handleFavorite(image)">
+                <HeartFilled v-if="image.is_favorite" class="favorited" />
                 <HeartOutlined v-else />
-              </a-button>
-              <a-button type="text" size="small" @click.stop="handleDownload(image)">
+              </div>
+              <div class="action-item" @click.stop="handleDownload(image)">
                 <DownloadOutlined />
-              </a-button>
-            </a-space>
+              </div>
+            </div>
           </div>
         </div>
         <div class="image-info">
           <div class="image-name" :title="image.original_name">{{ image.original_name }}</div>
           <div class="image-meta">
-            <span v-if="image.category_name">{{ image.category_name }}</span>
-            <span>{{ formatSize(image.file_size) }}</span>
+            <span class="category-badge" v-if="image.category_name">{{ image.category_name }}</span>
+            <span class="size">{{ formatSize(image.file_size) }}</span>
           </div>
         </div>
       </div>
     </div>
 
     <!-- 图片列表 -->
-    <a-table
-      v-else
-      :columns="columns"
-      :data-source="images"
-      :row-selection="{ selectedRowKeys: selectedIds, onChange: setSelectedIds }"
-      :loading="loading"
-      row-key="id"
-      @row-click="handleRowClick"
-    >
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'preview'">
-          <a-image :src="getImageUrl(record)" :width="60" :height="60" style="object-fit: cover" />
-        </template>
-        <template v-if="column.key === 'name'">
-          {{ record.original_name }}
-        </template>
-        <template v-if="column.key === 'category'">
-          {{ record.category_name || '-' }}
-        </template>
-        <template v-if="column.key === 'size'">
-          {{ formatSize(record.file_size) }}
-        </template>
-        <template v-if="column.key === 'createdAt'">
-          {{ formatDate(record.created_at) }}
-        </template>
-        <template v-if="column.key === 'actions'">
-          <a-space>
-            <a-button type="link" size="small" @click.stop="handlePreview(record)">预览</a-button>
-            <a-button type="link" size="small" @click.stop="handleFavorite(record)">
-              {{ record.is_favorite ? '取消收藏' : '收藏' }}
+    <div v-else class="image-list">
+      <div
+        v-for="image in images"
+        :key="image.id"
+        class="list-item"
+        :class="{ selected: selectedIds.includes(image.id) }"
+      >
+        <a-checkbox
+          :checked="selectedIds.includes(image.id)"
+          @change="toggleSelect(image.id)"
+          class="item-checkbox"
+        />
+        <img :src="getImageUrl(image)" class="item-thumb" />
+        <div class="item-info">
+          <div class="item-name">{{ image.original_name }}</div>
+          <div class="item-desc">{{ image.description || '暂无描述' }}</div>
+        </div>
+        <div class="item-category">
+          <span class="category-badge" v-if="image.category_name">{{ image.category_name }}</span>
+        </div>
+        <div class="item-size">{{ formatSize(image.file_size) }}</div>
+        <div class="item-date">{{ formatDate(image.created_at) }}</div>
+        <div class="item-actions">
+          <a-button type="text" size="small" @click="handlePreview(image)">
+            <EyeOutlined />
+          </a-button>
+          <a-button type="text" size="small" @click="handleFavorite(image)">
+            <HeartFilled v-if="image.is_favorite" style="color: #ef4444" />
+            <HeartOutlined v-else />
+          </a-button>
+          <a-button type="text" size="small" @click="handleDownload(image)">
+            <DownloadOutlined />
+          </a-button>
+          <a-popconfirm title="确定删除？" @confirm="handleDelete(image)">
+            <a-button type="text" size="small" danger>
+              <DeleteOutlined />
             </a-button>
-            <a-button type="link" size="small" @click.stop="handleDownload(record)">下载</a-button>
-            <a-popconfirm title="确定删除？" @confirm="handleDelete(record)">
-              <a-button type="link" size="small" danger @click.stop>删除</a-button>
-            </a-popconfirm>
-          </a-space>
-        </template>
-      </template>
-    </a-table>
+          </a-popconfirm>
+        </div>
+      </div>
+    </div>
+
+    <!-- 空状态 -->
+    <div v-if="images.length === 0 && !loading" class="empty-state">
+      <a-empty description="暂无图片">
+        <a-button type="primary" @click="$router.push('/upload')">上传图片</a-button>
+      </a-empty>
+    </div>
 
     <!-- 分页 -->
-    <div class="pagination-wrapper">
+    <div class="pagination-wrapper" v-if="pagination.total > 0">
       <a-pagination
         v-model:current="pagination.current"
         v-model:pageSize="pagination.pageSize"
         :total="pagination.total"
         show-size-changer
-        show-quick-jumper
-        @change="handlePageChange"
+        :show-total="total => `共 ${total} 张`"
       />
     </div>
 
@@ -152,22 +169,65 @@
     <a-modal
       v-model:open="previewVisible"
       :footer="null"
-      width="80%"
+      width="90%"
       centered
+      class="preview-modal"
     >
-      <div v-if="previewImage" class="preview-content">
-        <a-image :src="getImageUrl(previewImage, true)" style="max-width: 100%" />
-        <div class="preview-info">
+      <div class="preview-container" v-if="previewImage">
+        <div class="preview-image">
+          <img :src="getImageUrl(previewImage, true)" />
+        </div>
+        <div class="preview-sidebar">
           <h3>{{ previewImage.original_name }}</h3>
-          <p><strong>描述：</strong>{{ previewImage.description || '暂无' }}</p>
-          <p><strong>关键词：</strong>{{ previewImage.keywords?.join(', ') || '暂无' }}</p>
-          <p><strong>分类：</strong>{{ previewImage.category_name || '未分类' }}</p>
-          <p><strong>标签：</strong>
-            <a-tag v-for="tag in previewImage.tags" :key="tag.id">{{ tag.name }}</a-tag>
-            <span v-if="!previewImage.tags?.length">暂无</span>
-          </p>
-          <p><strong>大小：</strong>{{ formatSize(previewImage.file_size) }}</p>
-          <p><strong>上传时间：</strong>{{ formatDate(previewImage.created_at) }}</p>
+          <div class="preview-section">
+            <div class="section-label">描述</div>
+            <div class="section-content">{{ previewImage.description || '暂无描述' }}</div>
+          </div>
+          <div class="preview-section">
+            <div class="section-label">关键词</div>
+            <div class="section-tags">
+              <a-tag v-for="kw in (previewImage.keywords || [])" :key="kw">{{ kw }}</a-tag>
+              <span v-if="!previewImage.keywords?.length" class="empty-text">暂无</span>
+            </div>
+          </div>
+          <div class="preview-section">
+            <div class="section-label">分类</div>
+            <div class="section-content">{{ previewImage.category_name || '未分类' }}</div>
+          </div>
+          <div class="preview-section">
+            <div class="section-label">标签</div>
+            <div class="section-tags">
+              <a-tag v-for="tag in (previewImage.tags || [])" :key="tag.id" color="blue">{{ tag.name }}</a-tag>
+              <span v-if="!previewImage.tags?.length" class="empty-text">暂无</span>
+            </div>
+          </div>
+          <div class="preview-section">
+            <div class="section-label">文件信息</div>
+            <div class="section-info">
+              <div class="info-row">
+                <span class="info-label">大小</span>
+                <span class="info-value">{{ formatSize(previewImage.file_size) }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">格式</span>
+                <span class="info-value">{{ previewImage.file_format?.toUpperCase() }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">上传时间</span>
+                <span class="info-value">{{ formatDate(previewImage.created_at) }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="preview-actions">
+            <a-button type="primary" @click="handleDownload(previewImage)">
+              <DownloadOutlined /> 下载
+            </a-button>
+            <a-button @click="handleFavorite(previewImage)">
+              <HeartFilled v-if="previewImage.is_favorite" style="color: #ef4444" />
+              <HeartOutlined v-else />
+              {{ previewImage.is_favorite ? '取消收藏' : '收藏' }}
+            </a-button>
+          </div>
         </div>
       </div>
     </a-modal>
@@ -177,10 +237,13 @@
       v-model:open="showSemanticSearch"
       title="语义搜索"
       @ok="handleSemanticSearch"
+      class="semantic-modal"
     >
+      <p class="semantic-tip">使用自然语言描述你想要查找的图片</p>
       <a-input
         v-model:value="semanticQuery"
-        placeholder="输入自然语言描述，如：蓝色的风景照片"
+        placeholder="例如：蓝色的风景照片、可爱的小动物..."
+        size="large"
       />
     </a-modal>
   </div>
@@ -198,7 +261,8 @@ import {
   HeartOutlined,
   HeartFilled,
   DownloadOutlined,
-  DeleteOutlined
+  DeleteOutlined,
+  BulbOutlined
 } from '@ant-design/icons-vue'
 import { imageApi } from '@/api/image'
 import { categoryApi } from '@/api/category'
@@ -227,15 +291,6 @@ const pagination = reactive({
   total: 0
 })
 
-const columns = [
-  { title: '预览', key: 'preview', width: 80 },
-  { title: '名称', key: 'name' },
-  { title: '分类', key: 'category', width: 120 },
-  { title: '大小', key: 'size', width: 100 },
-  { title: '上传时间', key: 'createdAt', width: 180 },
-  { title: '操作', key: 'actions', width: 250 }
-]
-
 const categoryTree = computed(() => {
   const buildTree = (cats) => {
     return cats.map(cat => ({
@@ -250,12 +305,6 @@ const categoryTree = computed(() => {
 onMounted(async () => {
   await Promise.all([loadCategories(), loadTags()])
   await loadImages()
-
-  // 处理路由参数
-  if (route.query.keyword) {
-    keyword.value = route.query.keyword
-    await loadImages()
-  }
 })
 
 async function loadImages() {
@@ -286,16 +335,6 @@ async function loadImages() {
 
 async function loadCategories() {
   const res = await categoryApi.getTree()
-  const flattenCats = (cats) => {
-    let result = []
-    cats.forEach(cat => {
-      result.push(cat)
-      if (cat.children?.length) {
-        result = result.concat(flattenCats(cat.children))
-      }
-    })
-    return result
-  }
   categories.value = res.data || []
 }
 
@@ -309,14 +348,6 @@ function handleFilter() {
   loadImages()
 }
 
-function handlePageChange() {
-  loadImages()
-}
-
-function toggleViewMode() {
-  viewMode.value = viewMode.value === 'grid' ? 'list' : 'grid'
-}
-
 function toggleSelect(id) {
   const index = selectedIds.value.indexOf(id)
   if (index > -1) {
@@ -324,10 +355,6 @@ function toggleSelect(id) {
   } else {
     selectedIds.value.push(id)
   }
-}
-
-function setSelectedIds(keys) {
-  selectedIds.value = keys
 }
 
 function getImageUrl(image, full = false) {
@@ -345,10 +372,6 @@ function formatSize(bytes) {
 
 function formatDate(date) {
   return dayjs(date).format('YYYY-MM-DD HH:mm')
-}
-
-function handleImageClick(image) {
-  // 双击预览，单击选择
 }
 
 function handlePreview(image) {
@@ -433,20 +456,16 @@ async function handleSemanticSearch() {
   }
 }
 
-// 监听路由查询参数
-watch(() => route.query, (query) => {
-  if (query.keyword) {
-    keyword.value = query.keyword
-    loadImages()
-  }
-}, { immediate: true })
+watch(() => pagination.current, () => loadImages())
+watch(() => pagination.pageSize, () => loadImages())
 </script>
 
 <style scoped>
 .images-page {
-  min-height: 100%;
+  animation: fadeIn 0.3s ease;
 }
 
+/* 筛选栏 */
 .filter-bar {
   display: flex;
   justify-content: space-between;
@@ -454,115 +473,410 @@ watch(() => route.query, (query) => {
   margin-bottom: 24px;
   flex-wrap: wrap;
   gap: 16px;
+  padding: 16px 20px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
+.filter-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-select {
+  width: 180px;
+}
+
+.filter-select.small {
+  width: 140px;
+}
+
+.filter-search {
+  width: 200px;
+}
+
+.semantic-btn {
+  background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+  border: none;
+}
+
+.filter-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.view-toggle {
+  display: flex;
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.toggle-btn {
+  width: 36px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #64748b;
+  transition: all 0.2s ease;
+}
+
+.toggle-btn.active {
+  background: white;
+  color: #6366f1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 图片网格 */
 .image-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
 }
 
 .image-card {
   background: white;
-  border-radius: 8px;
+  border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   transition: all 0.3s ease;
-  cursor: pointer;
+  position: relative;
   border: 2px solid transparent;
 }
 
 .image-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+  transform: translateY(-6px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
 }
 
 .image-card.selected {
-  border-color: #1890ff;
+  border-color: #6366f1;
+}
+
+.image-checkbox {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  padding: 4px;
+  background: white;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .image-wrapper {
   position: relative;
   aspect-ratio: 1;
-  background: #f5f5f5;
+  overflow: hidden;
+  cursor: pointer;
 }
 
-.image-checkbox {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 10;
-}
-
-.image-thumb {
+.image-wrapper img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.5s ease;
+}
+
+.image-card:hover .image-wrapper img {
+  transform: scale(1.08);
 }
 
 .image-overlay {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 8px;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.6));
+  inset: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.6) 0%, transparent 50%);
   opacity: 0;
-  transition: opacity 0.3s;
+  transition: opacity 0.3s ease;
 }
 
 .image-card:hover .image-overlay {
   opacity: 1;
 }
 
-.image-overlay .ant-btn {
-  color: white;
+.overlay-actions {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.action-item {
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #1e293b;
+}
+
+.action-item:hover {
+  background: white;
+  transform: scale(1.1);
+}
+
+.action-item .favorited {
+  color: #ef4444;
 }
 
 .image-info {
-  padding: 12px;
+  padding: 16px;
 }
 
 .image-name {
   font-size: 14px;
   font-weight: 500;
+  color: #1e293b;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
 }
 
 .image-meta {
-  font-size: 12px;
-  color: #999;
   display: flex;
   justify-content: space-between;
+  align-items: center;
 }
 
+.category-badge {
+  font-size: 12px;
+  color: #6366f1;
+  background: #eef2ff;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.size {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* 图片列表 */
+.image-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.list-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.list-item:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.list-item.selected {
+  border-color: #6366f1;
+  background: #f8faff;
+}
+
+.item-checkbox {
+  flex-shrink: 0;
+}
+
+.item-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.item-name {
+  font-weight: 500;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.item-desc {
+  font-size: 13px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-category {
+  width: 100px;
+}
+
+.item-size {
+  width: 80px;
+  text-align: right;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.item-date {
+  width: 140px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.item-actions {
+  display: flex;
+  gap: 4px;
+}
+
+/* 分页 */
 .pagination-wrapper {
   display: flex;
   justify-content: center;
+  margin-top: 32px;
+  padding: 20px;
+  background: white;
+  border-radius: 16px;
+}
+
+/* 预览弹窗 */
+.preview-modal :deep(.ant-modal-content) {
+  padding: 0;
+}
+
+.preview-container {
+  display: flex;
+  min-height: 70vh;
+}
+
+.preview-image {
+  flex: 1;
+  background: #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.preview-image img {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.preview-sidebar {
+  width: 320px;
+  padding: 24px;
+  background: white;
+  overflow-y: auto;
+}
+
+.preview-sidebar h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 24px;
+  color: #1e293b;
+}
+
+.preview-section {
+  margin-bottom: 20px;
+}
+
+.section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.section-content {
+  color: #1e293b;
+  line-height: 1.6;
+}
+
+.section-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.empty-text {
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.section-info {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+}
+
+.info-label {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.info-value {
+  color: #1e293b;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.preview-actions {
+  display: flex;
+  gap: 12px;
   margin-top: 24px;
 }
 
-.preview-content {
-  display: flex;
-  gap: 24px;
+/* 语义搜索 */
+.semantic-modal :deep(.ant-modal-body) {
+  padding: 24px;
 }
 
-.preview-info {
-  flex: 1;
-  min-width: 200px;
-}
-
-.preview-info h3 {
+.semantic-tip {
+  color: #64748b;
   margin-bottom: 16px;
-  font-size: 18px;
 }
 
-.preview-info p {
-  margin-bottom: 12px;
-  color: #666;
+/* 空状态 */
+.empty-state {
+  padding: 60px 20px;
+  text-align: center;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>

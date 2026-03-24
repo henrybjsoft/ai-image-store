@@ -1,44 +1,37 @@
 <template>
   <div class="users-page">
-    <a-page-header title="用户管理">
-      <template #extra>
-        <a-button type="primary" @click="showAddModal">
-          <PlusOutlined /> 添加用户
-        </a-button>
-      </template>
-    </a-page-header>
+    <div class="page-header">
+      <div class="header-content">
+        <h2>用户管理</h2>
+        <p>管理系统管理员账号</p>
+      </div>
+      <a-button type="primary" @click="showAddModal">
+        <PlusOutlined /> 添加用户
+      </a-button>
+    </div>
 
-    <a-table
-      :columns="columns"
-      :data-source="users"
-      :loading="loading"
-      row-key="id"
-    >
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'createdAt'">
-          {{ formatDate(record.created_at) }}
-        </template>
-        <template v-if="column.key === 'actions'">
-          <a-space>
-            <a-button type="link" size="small" @click="showPasswordModal(record)">
-              修改密码
-            </a-button>
-            <a-button type="link" size="small" @click="showEditModal(record)">
-              编辑
-            </a-button>
-            <a-popconfirm
-              title="确定删除此用户？"
-              @confirm="handleDelete(record)"
-              :disabled="record.id === currentUserId"
-            >
-              <a-button type="link" size="small" danger :disabled="record.id === currentUserId">
-                删除
-              </a-button>
-            </a-popconfirm>
-          </a-space>
-        </template>
-      </template>
-    </a-table>
+    <div class="users-grid">
+      <div v-for="user in users" :key="user.id" class="user-card">
+        <div class="user-avatar">
+          {{ user.username.charAt(0).toUpperCase() }}
+        </div>
+        <div class="user-info">
+          <div class="user-name">{{ user.username }}</div>
+          <div class="user-date">创建于 {{ formatDate(user.created_at) }}</div>
+        </div>
+        <div class="user-actions">
+          <a-button size="small" @click="showPasswordModal(user)">修改密码</a-button>
+          <a-button size="small" @click="showEditModal(user)">编辑</a-button>
+          <a-popconfirm
+            title="确定删除此用户？"
+            @confirm="handleDelete(user)"
+            :disabled="user.id === currentUserId"
+          >
+            <a-button size="small" danger :disabled="user.id === currentUserId">删除</a-button>
+          </a-popconfirm>
+        </div>
+      </div>
+    </div>
 
     <!-- 添加/编辑用户弹窗 -->
     <a-modal
@@ -48,10 +41,10 @@
     >
       <a-form layout="vertical">
         <a-form-item label="用户名" required>
-          <a-input v-model:value="formState.username" placeholder="请输入用户名" />
+          <a-input v-model:value="formState.username" placeholder="请输入用户名" size="large" />
         </a-form-item>
         <a-form-item v-if="!editingUser" label="密码" required>
-          <a-input-password v-model:value="formState.password" placeholder="请输入密码（至少6位）" />
+          <a-input-password v-model:value="formState.password" placeholder="请输入密码（至少6位）" size="large" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -64,10 +57,10 @@
     >
       <a-form layout="vertical">
         <a-form-item label="新密码" required>
-          <a-input-password v-model:value="passwordForm.password" placeholder="请输入新密码（至少6位）" />
+          <a-input-password v-model:value="passwordForm.password" placeholder="请输入新密码（至少6位）" size="large" />
         </a-form-item>
         <a-form-item label="确认密码" required>
-          <a-input-password v-model:value="passwordForm.confirmPassword" placeholder="请再次输入新密码" />
+          <a-input-password v-model:value="passwordForm.confirmPassword" placeholder="请再次输入新密码" size="large" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -100,13 +93,6 @@ const passwordForm = reactive({
   password: '',
   confirmPassword: ''
 })
-
-const columns = [
-  { title: 'ID', dataIndex: 'id', width: 80 },
-  { title: '用户名', dataIndex: 'username' },
-  { title: '创建时间', key: 'createdAt', width: 180 },
-  { title: '操作', key: 'actions', width: 200 }
-]
 
 onMounted(() => {
   loadUsers()
@@ -203,6 +189,93 @@ async function handleDelete(user) {
 }
 
 function formatDate(date) {
-  return dayjs(date).format('YYYY-MM-DD HH:mm')
+  return dayjs(date).format('YYYY-MM-DD')
 }
 </script>
+
+<style scoped>
+.users-page {
+  animation: fadeIn 0.3s ease;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.header-content h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.header-content p {
+  color: #64748b;
+  font-size: 14px;
+}
+
+.users-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.user-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.user-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+}
+
+.user-avatar {
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.user-info {
+  flex: 1;
+}
+
+.user-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.user-date {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.user-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+</style>

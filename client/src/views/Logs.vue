@@ -1,47 +1,58 @@
 <template>
   <div class="logs-page">
-    <a-page-header title="操作日志" />
-
-    <div class="filter-bar">
-      <a-space>
-        <a-select v-model:value="filters.action" placeholder="操作类型" allow-clear style="width: 150px" @change="loadLogs">
-          <a-select-option value="login">登录</a-select-option>
-          <a-select-option value="logout">登出</a-select-option>
-          <a-select-option value="upload_image">上传图片</a-select-option>
-          <a-select-option value="delete_image">删除图片</a-select-option>
-          <a-select-option value="restore_images">恢复图片</a-select-option>
-          <a-select-option value="create_category">创建分类</a-select-option>
-          <a-select-option value="delete_category">删除分类</a-select-option>
-          <a-select-option value="create_user">创建用户</a-select-option>
-          <a-select-option value="delete_user">删除用户</a-select-option>
-        </a-select>
-        <a-range-picker v-model:value="filters.dateRange" @change="loadLogs" />
-      </a-space>
+    <div class="page-header">
+      <div class="header-content">
+        <h2>操作日志</h2>
+        <p>查看系统操作记录</p>
+      </div>
     </div>
 
-    <a-table
-      :columns="columns"
-      :data-source="logs"
-      :loading="loading"
-      row-key="id"
-      :pagination="pagination"
-      @change="handleTableChange"
-    >
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'action'">
-          <a-tag :color="getActionColor(record.action)">{{ getActionText(record.action) }}</a-tag>
-        </template>
-        <template v-if="column.key === 'createdAt'">
-          {{ formatDate(record.created_at) }}
-        </template>
-      </template>
-    </a-table>
+    <div class="filter-bar">
+      <a-select v-model:value="filters.action" placeholder="操作类型" allow-clear style="width: 160px" @change="loadLogs">
+        <a-select-option value="login">登录</a-select-option>
+        <a-select-option value="logout">登出</a-select-option>
+        <a-select-option value="upload_image">上传图片</a-select-option>
+        <a-select-option value="delete_image">删除图片</a-select-option>
+        <a-select-option value="create_category">创建分类</a-select-option>
+        <a-select-option value="create_user">创建用户</a-select-option>
+      </a-select>
+      <a-range-picker v-model:value="filters.dateRange" @change="loadLogs" />
+    </div>
+
+    <div class="logs-list">
+      <div v-for="log in logs" :key="log.id" class="log-item">
+        <div class="log-icon" :class="getActionClass(log.action)">
+          <component :is="getActionIcon(log.action)" />
+        </div>
+        <div class="log-content">
+          <div class="log-title">
+            <span class="log-user">{{ log.username }}</span>
+            <span class="log-action">{{ getActionText(log.action) }}</span>
+          </div>
+          <div class="log-detail">{{ log.details }}</div>
+        </div>
+        <div class="log-meta">
+          <div class="log-time">{{ formatDate(log.created_at) }}</div>
+          <div class="log-ip">{{ log.ip_address }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pagination-wrapper" v-if="pagination.total > 0">
+      <a-pagination
+        v-model:current="pagination.current"
+        :total="pagination.total"
+        :show-total="total => `共 ${total} 条`"
+        @change="loadLogs"
+      />
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import dayjs from 'dayjs'
+import { LoginOutlined, LogoutOutlined, UploadOutlined, DeleteOutlined, FolderAddOutlined, UserAddOutlined } from '@ant-design/icons-vue'
 import { logApi } from '@/api/log'
 
 const loading = ref(false)
@@ -55,19 +66,8 @@ const filters = reactive({
 const pagination = reactive({
   current: 1,
   pageSize: 20,
-  total: 0,
-  showSizeChanger: true,
-  showTotal: (total) => `共 ${total} 条`
+  total: 0
 })
-
-const columns = [
-  { title: 'ID', dataIndex: 'id', width: 80 },
-  { title: '操作人', dataIndex: 'username', width: 120 },
-  { title: '操作类型', key: 'action', width: 120 },
-  { title: '操作详情', dataIndex: 'details' },
-  { title: 'IP地址', dataIndex: 'ip_address', width: 140 },
-  { title: '操作时间', key: 'createdAt', width: 180 }
-]
 
 onMounted(() => {
   loadLogs()
@@ -92,56 +92,165 @@ async function loadLogs() {
   }
 }
 
-function handleTableChange(pag) {
-  pagination.current = pag.current
-  pagination.pageSize = pag.pageSize
-  loadLogs()
-}
-
 function formatDate(date) {
-  return dayjs(date).format('YYYY-MM-DD HH:mm:ss')
+  return dayjs(date).format('MM-DD HH:mm:ss')
 }
 
 function getActionText(action) {
   const map = {
-    login: '登录',
-    logout: '登出',
+    login: '登录系统',
+    logout: '退出系统',
     upload_image: '上传图片',
     delete_image: '删除图片',
     restore_images: '恢复图片',
     create_category: '创建分类',
-    update_category: '更新分类',
-    delete_category: '删除分类',
-    create_tag: '创建标签',
-    delete_tag: '删除标签',
-    create_user: '创建用户',
-    update_user: '更新用户',
-    delete_user: '删除用户',
-    change_password: '修改密码',
-    favorite_image: '收藏图片',
-    unfavorite_image: '取消收藏'
+    create_user: '创建用户'
   }
   return map[action] || action
 }
 
-function getActionColor(action) {
+function getActionIcon(action) {
   const map = {
-    login: 'green',
+    login: 'LoginOutlined',
+    logout: 'LogoutOutlined',
+    upload_image: 'UploadOutlined',
+    delete_image: 'DeleteOutlined',
+    create_category: 'FolderAddOutlined',
+    create_user: 'UserAddOutlined'
+  }
+  return map[action] || 'LoginOutlined'
+}
+
+function getActionClass(action) {
+  const map = {
+    login: 'success',
     logout: 'default',
-    upload_image: 'blue',
-    delete_image: 'red',
-    restore_images: 'orange',
-    create_category: 'cyan',
-    delete_category: 'red',
-    create_user: 'purple',
-    delete_user: 'red'
+    upload_image: 'primary',
+    delete_image: 'danger',
+    create_category: 'warning',
+    create_user: 'info'
   }
   return map[action] || 'default'
 }
 </script>
 
 <style scoped>
+.logs-page {
+  animation: fadeIn 0.3s ease;
+}
+
+.page-header {
+  margin-bottom: 24px;
+}
+
+.header-content h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.header-content p {
+  color: #64748b;
+  font-size: 14px;
+}
+
 .filter-bar {
-  margin-bottom: 16px;
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  background: white;
+  border-radius: 16px;
+}
+
+.logs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.log-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+
+.log-item:hover {
+  background: #f8fafc;
+}
+
+.log-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.log-icon.success { background: #dcfce7; color: #10b981; }
+.log-icon.danger { background: #fee2e2; color: #ef4444; }
+.log-icon.primary { background: #dbeafe; color: #3b82f6; }
+.log-icon.warning { background: #fef3c7; color: #f59e0b; }
+.log-icon.info { background: #e0e7ff; color: #6366f1; }
+.log-icon.default { background: #f1f5f9; color: #64748b; }
+
+.log-content {
+  flex: 1;
+}
+
+.log-title {
+  margin-bottom: 4px;
+}
+
+.log-user {
+  font-weight: 600;
+  color: #1e293b;
+  margin-right: 8px;
+}
+
+.log-action {
+  color: #64748b;
+}
+
+.log-detail {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.log-meta {
+  text-align: right;
+}
+
+.log-time {
+  font-size: 13px;
+  color: #1e293b;
+  margin-bottom: 2px;
+}
+
+.log-ip {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.pagination-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+  padding: 16px;
+  background: white;
+  border-radius: 16px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>

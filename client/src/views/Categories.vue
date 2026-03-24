@@ -1,61 +1,67 @@
 <template>
   <div class="categories-page">
-    <a-page-header title="分类管理">
-      <template #extra>
-        <a-button type="primary" @click="showAddModal(null)">
-          <PlusOutlined /> 添加一级分类
-        </a-button>
-      </template>
-    </a-page-header>
+    <div class="page-header">
+      <div class="header-content">
+        <h2>分类管理</h2>
+        <p>管理图片分类，支持两级结构</p>
+      </div>
+      <a-button type="primary" @click="showAddModal(null)">
+        <PlusOutlined /> 添加分类
+      </a-button>
+    </div>
 
-    <a-table
-      :columns="columns"
-      :data-source="flatCategories"
-      :loading="loading"
-      row-key="id"
-      :pagination="false"
-    >
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'name'">
-          <span :style="{ paddingLeft: record.level * 24 + 'px' }">
-            {{ record.parent_id ? '└ ' : '' }}{{ record.name }}
-          </span>
-        </template>
-        <template v-if="column.key === 'level'">
-          <a-tag :color="record.parent_id ? 'blue' : 'green'">
-            {{ record.parent_id ? '二级' : '一级' }}
-          </a-tag>
-        </template>
-        <template v-if="column.key === 'actions'">
-          <a-space>
-            <a-button
-              v-if="!record.parent_id"
-              type="link"
-              size="small"
-              @click="showAddModal(record)"
-            >
-              添加子分类
+    <div class="category-grid">
+      <div v-for="category in categories" :key="category.id" class="category-card">
+        <div class="category-header">
+          <div class="category-icon">
+            <FolderOutlined />
+          </div>
+          <div class="category-title">{{ category.name }}</div>
+          <div class="category-actions">
+            <a-button type="text" size="small" @click="showAddModal(category)">
+              <PlusOutlined />
             </a-button>
-            <a-button type="link" size="small" @click="showEditModal(record)">
-              编辑
+            <a-button type="text" size="small" @click="showEditModal(category)">
+              <EditOutlined />
             </a-button>
-            <a-popconfirm title="确定删除此分类？" @confirm="handleDelete(record)">
-              <a-button type="link" size="small" danger>删除</a-button>
+            <a-popconfirm title="确定删除此分类？" @confirm="handleDelete(category)">
+              <a-button type="text" size="small" danger>
+                <DeleteOutlined />
+              </a-button>
             </a-popconfirm>
-          </a-space>
-        </template>
-      </template>
-    </a-table>
+          </div>
+        </div>
+        <div v-if="category.children?.length" class="subcategory-list">
+          <div v-for="child in category.children" :key="child.id" class="subcategory-item">
+            <span class="subcategory-name">{{ child.name }}</span>
+            <div class="subcategory-actions">
+              <a-button type="text" size="small" @click="showEditModal(child)">
+                <EditOutlined />
+              </a-button>
+              <a-popconfirm title="确定删除？" @confirm="handleDelete(child)">
+                <a-button type="text" size="small" danger>
+                  <DeleteOutlined />
+                </a-button>
+              </a-popconfirm>
+            </div>
+          </div>
+        </div>
+        <div v-else class="no-subcategory">
+          <span>暂无子分类</span>
+        </div>
+      </div>
+    </div>
 
-    <!-- 添加/编辑分类弹窗 -->
+    <!-- 添加/编辑弹窗 -->
     <a-modal
       v-model:open="modalVisible"
       :title="editingCategory ? '编辑分类' : (parentCategory ? '添加子分类' : '添加一级分类')"
       @ok="handleSubmit"
+      class="category-modal"
     >
       <a-form layout="vertical">
         <a-form-item label="分类名称" required>
-          <a-input v-model:value="formState.name" placeholder="请输入分类名称" />
+          <a-input v-model:value="formState.name" placeholder="请输入分类名称" size="large" />
         </a-form-item>
         <a-form-item v-if="parentCategory" label="父分类">
           <a-input :value="parentCategory.name" disabled />
@@ -66,9 +72,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
-import { PlusOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, FolderOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons-vue'
 import { categoryApi } from '@/api/category'
 
 const loading = ref(false)
@@ -79,26 +85,6 @@ const parentCategory = ref(null)
 
 const formState = reactive({
   name: ''
-})
-
-const columns = [
-  { title: '分类名称', key: 'name' },
-  { title: '级别', key: 'level', width: 100 },
-  { title: '操作', key: 'actions', width: 200 }
-]
-
-const flatCategories = computed(() => {
-  const result = []
-  const flatten = (cats, level = 0) => {
-    cats.forEach(cat => {
-      result.push({ ...cat, level })
-      if (cat.children?.length) {
-        flatten(cat.children, level + 1)
-      }
-    })
-  }
-  flatten(categories.value)
-  return result
 })
 
 onMounted(() => {
@@ -163,3 +149,134 @@ async function handleDelete(category) {
   }
 }
 </script>
+
+<style scoped>
+.categories-page {
+  animation: fadeIn 0.3s ease;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.header-content h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.header-content p {
+  color: #64748b;
+  font-size: 14px;
+}
+
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.category-card {
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.category-card:hover {
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+}
+
+.category-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: white;
+}
+
+.category-icon {
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.category-title {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.category-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.category-actions .ant-btn {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.category-actions .ant-btn:hover {
+  color: white;
+}
+
+.subcategory-list {
+  padding: 12px;
+}
+
+.subcategory-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.subcategory-item:hover {
+  background: #f8fafc;
+}
+
+.subcategory-name {
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.subcategory-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.subcategory-item:hover .subcategory-actions {
+  opacity: 1;
+}
+
+.no-subcategory {
+  padding: 20px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.category-modal :deep(.ant-input) {
+  border-radius: 10px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+</style>
