@@ -3,7 +3,7 @@
     <div class="upload-container">
       <div class="upload-header">
         <h2>上传图片</h2>
-        <p>支持 JPG、PNG、WebP、GIF、SVG 格式，单张不超过 10MB，单次最多 20 张</p>
+        <p>支持 JPG、PNG、WebP、GIF、SVG 格式，单张不超过 10MB，单次最多 100 张</p>
         <p v-if="userStore.user?.role !== 'admin' && quotaInfo.quota > 0" class="quota-info">
           已上传 {{ quotaInfo.imageCount }} / {{ quotaInfo.quota }} 张（剩余 {{ quotaInfo.quota - quotaInfo.imageCount }} 张）
         </p>
@@ -198,7 +198,7 @@ const selectedCategory = ref(null)
 const selectedTags = ref([])
 
 const acceptTypes = '.jpg,.jpeg,.png,.webp,.gif,.svg'
-const maxFiles = 20
+const maxFiles = 100
 const maxFileSize = 10 * 1024 * 1024
 
 const progressColors = {

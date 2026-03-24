@@ -85,7 +85,7 @@
 - 支持拖拽上传和点击选择
 - 支持格式：JPG、PNG、WebP、GIF、SVG
 - 单张图片大小限制：10MB
-- 单次批量上传数量限制：20张
+- 单次批量上传数量限制：100张
 - **智能文件验证**：
   - 选择文件时自动验证格式和大小
   - 不符合条件的文件标记为无效，显示原因（格式不支持/超过大小限制）
@@ -656,7 +656,7 @@ DASHSCOPE_API_KEY=your-dashscope-api-key
 
 # 文件上传配置
 MAX_FILE_SIZE=10485760        # 10MB
-MAX_FILES=20
+MAX_FILES=100
 UPLOAD_DIR=./uploads
 
 # 允许的图片格式
