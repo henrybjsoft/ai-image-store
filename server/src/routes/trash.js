@@ -81,14 +81,24 @@ router.delete('/:id', async (req, res) => {
     }
 
     // 删除文件
+    let fileDeleted = true;
     const absolutePath = path.join(UPLOAD_DIR, image.file_path);
     if (fs.existsSync(absolutePath)) {
-      fs.unlinkSync(absolutePath);
+      try {
+        fs.unlinkSync(absolutePath);
+      } catch (e) {
+        fileDeleted = false;
+        console.warn('删除文件失败:', e.message);
+      }
     }
     if (image.thumbnail_path) {
       const thumbnailPath = path.join(UPLOAD_DIR, image.thumbnail_path);
       if (fs.existsSync(thumbnailPath)) {
-        fs.unlinkSync(thumbnailPath);
+        try {
+          fs.unlinkSync(thumbnailPath);
+        } catch (e) {
+          console.warn('删除缩略图失败:', e.message);
+        }
       }
     }
 
@@ -99,6 +109,13 @@ router.delete('/:id', async (req, res) => {
     removeImageVector(id);
 
     LogRepository.create(req.user.id, 'permanent_delete_image', 'image', id, `彻底删除图片: ${image.original_name}`, req.ip);
+
+    if (!fileDeleted) {
+      return res.json({
+        success: true,
+        message: '图片记录已删除，但文件被占用未能删除'
+      });
+    }
 
     res.json({
       success: true,
@@ -119,30 +136,50 @@ router.delete('/', async (req, res) => {
     // 获取所有已删除图片
     const deletedImages = ImageRepository.findDeleted();
 
+    let deletedCount = 0;
+    let failedFiles = [];
+
     // 删除文件
     for (const image of deletedImages) {
-      const absolutePath = path.join(UPLOAD_DIR, image.file_path);
-      if (fs.existsSync(absolutePath)) {
-        fs.unlinkSync(absolutePath);
-      }
-      if (image.thumbnail_path) {
-        const thumbnailPath = path.join(UPLOAD_DIR, image.thumbnail_path);
-        if (fs.existsSync(thumbnailPath)) {
-          fs.unlinkSync(thumbnailPath);
+      try {
+        const absolutePath = path.join(UPLOAD_DIR, image.file_path);
+        if (fs.existsSync(absolutePath)) {
+          fs.unlinkSync(absolutePath);
         }
+        if (image.thumbnail_path) {
+          const thumbnailPath = path.join(UPLOAD_DIR, image.thumbnail_path);
+          if (fs.existsSync(thumbnailPath)) {
+            fs.unlinkSync(thumbnailPath);
+          }
+        }
+        removeImageVector(image.id);
+        deletedCount++;
+      } catch (fileError) {
+        // 文件被占用时跳过，记录失败文件
+        console.warn(`删除文件失败: ${image.file_path}`, fileError.message);
+        failedFiles.push(image.original_name);
       }
-      removeImageVector(image.id);
     }
 
-    // 清空回收站
-    ImageRepository.emptyTrash();
+    // 清空回收站（只删除成功删除文件的数据库记录）
+    if (deletedCount > 0) {
+      ImageRepository.emptyTrash();
+    }
 
-    LogRepository.create(req.user.id, 'empty_trash', 'image', null, `清空回收站，删除 ${deletedImages.length} 张图片`, req.ip);
+    LogRepository.create(req.user.id, 'empty_trash', 'image', null, `清空回收站，删除 ${deletedCount} 张图片`, req.ip);
 
-    res.json({
-      success: true,
-      message: `已清空回收站，删除 ${deletedImages.length} 张图片`
-    });
+    if (failedFiles.length > 0) {
+      res.json({
+        success: true,
+        message: `已删除 ${deletedCount} 张图片，${failedFiles.length} 张文件被占用无法删除`,
+        failedFiles
+      });
+    } else {
+      res.json({
+        success: true,
+        message: `已清空回收站，删除 ${deletedCount} 张图片`
+      });
+    }
   } catch (error) {
     console.error('清空回收站错误:', error);
     res.status(500).json({
