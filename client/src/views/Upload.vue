@@ -8,13 +8,14 @@
 
       <div class="upload-area">
         <a-upload-dragger
-          v-model:fileList="fileList"
+          :file-list="displayFileList"
           :multiple="true"
           :before-upload="beforeUpload"
           :accept="acceptTypes"
-          :max-count="maxFiles"
+          :remove="handleRemoveValidFile"
           list-type="picture-card"
           class="uploader"
+          @change="handleFileChange"
         >
           <div class="upload-content">
             <div class="upload-icon">
@@ -26,6 +27,22 @@
             </div>
           </div>
         </a-upload-dragger>
+      </div>
+
+      <!-- 文件列表（显示无效文件） -->
+      <div v-if="invalidFiles.length > 0" class="invalid-section">
+        <div class="invalid-header">
+          <ExclamationCircleOutlined />
+          <span>以下文件不符合要求，将被跳过</span>
+        </div>
+        <div class="invalid-list">
+          <div v-for="file in invalidFiles" :key="file.uid" class="invalid-item">
+            <CloseCircleOutlined class="invalid-icon" />
+            <span class="invalid-name">{{ file.name }}</span>
+            <span class="invalid-reason">{{ file.invalidReason }}</span>
+            <a-button type="link" size="small" @click="removeInvalidFile(file.uid)">移除</a-button>
+          </div>
+        </div>
       </div>
 
       <!-- 上传进度列表 -->
@@ -85,12 +102,12 @@
           type="primary"
           size="large"
           :loading="uploading"
-          :disabled="fileList.length === 0"
+          :disabled="validFiles.length === 0"
           @click="handleUpload"
         >
-          <UploadOutlined /> 开始上传
+          <UploadOutlined /> 开始上传 ({{ validFiles.length }} 张)
         </a-button>
-        <a-button size="large" :disabled="fileList.length === 0 || uploading" @click="handleClear">
+        <a-button size="large" :disabled="allFiles.length === 0 || uploading" @click="handleClear">
           清空列表
         </a-button>
       </div>
@@ -106,11 +123,13 @@ import {
   UploadOutlined,
   CheckCircleFilled,
   CloseCircleFilled,
-  LoadingOutlined
+  LoadingOutlined,
+  ExclamationCircleOutlined
 } from '@ant-design/icons-vue'
 import { getToken } from '@/utils/auth'
 
-const fileList = ref([])
+// 所有文件列表（包含有效和无效）
+const allFiles = ref([])
 const uploading = ref(false)
 const uploadingItems = ref([])
 const showResult = ref(false)
@@ -123,6 +142,21 @@ const progressColors = {
   '0%': '#6366f1',
   '100%': '#8b5cf6'
 }
+
+// 无效文件列表
+const invalidFiles = computed(() => {
+  return allFiles.value.filter(file => file.invalidReason)
+})
+
+// 有效文件列表
+const validFiles = computed(() => {
+  return allFiles.value.filter(file => !file.invalidReason)
+})
+
+// 显示在上传组件中的文件列表（只显示有效文件）
+const displayFileList = computed(() => {
+  return validFiles.value
+})
 
 const completedCount = computed(() => {
   return uploadingItems.value.filter(item =>
@@ -138,30 +172,90 @@ const failedCount = computed(() => {
   return uploadingItems.value.filter(item => item.status === 'error').length
 })
 
-function beforeUpload(file) {
+// 处理文件变化
+function handleFileChange(info) {
+  // 更新所有文件列表
+  allFiles.value = info.fileList.map(file => {
+    // 保留已有的 invalidReason
+    if (!file.invalidReason) {
+      file.invalidReason = null
+    }
+    return file
+  })
+
+  // 检查每个文件的有效性
+  checkFileValidity()
+}
+
+// 检查文件有效性
+let hasShownLimitWarning = false
+
+function checkFileValidity() {
   const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']
-  const isAllowed = allowedTypes.includes(file.type)
-  if (!isAllowed) {
-    message.error(`${file.name} 格式不支持`)
-    return false
-  }
 
-  if (file.size > maxFileSize) {
-    message.error(`${file.name} 超过 10MB 限制`)
-    return false
-  }
+  // 先检查格式和大小
+  allFiles.value.forEach(file => {
+    const isAllowed = allowedTypes.includes(file.type)
 
-  if (fileList.value.length >= maxFiles) {
-    message.warning(`最多上传 ${maxFiles} 张图片`)
-    return false
-  }
+    if (!isAllowed) {
+      file.invalidReason = '格式不支持'
+    } else if (file.size > maxFileSize) {
+      file.invalidReason = `超过10MB限制 (${(file.size / 1024 / 1024).toFixed(1)}MB)`
+    } else if (!file.invalidReason || file.invalidReason.startsWith('超出数量限制')) {
+      // 格式和大小都有效，清除之前的数量限制标记（后面会重新计算）
+      file.invalidReason = null
+    }
+  })
 
+  // 再检查数量限制
+  let validCount = 0
+  allFiles.value.forEach(file => {
+    // 跳过已经因为格式/大小被标记为无效的
+    if (file.invalidReason && !file.invalidReason.startsWith('超出数量限制')) {
+      return
+    }
+
+    validCount++
+    if (validCount > maxFiles) {
+      file.invalidReason = `超出数量限制（最多${maxFiles}张）`
+    }
+  })
+
+  // 显示警告
+  const currentValidCount = allFiles.value.filter(f => !f.invalidReason).length
+  if (currentValidCount > maxFiles && !hasShownLimitWarning) {
+    message.warning(`最多上传 ${maxFiles} 张图片，已自动跳过超出部分`)
+    hasShownLimitWarning = true
+  }
+}
+
+function beforeUpload() {
+  // 返回 false 阻止自动上传，我们手动控制
   return false
 }
 
+function handleRemoveValidFile(file) {
+  const index = allFiles.value.findIndex(f => f.uid === file.uid)
+  if (index > -1) {
+    allFiles.value.splice(index, 1)
+  }
+  // 重新检查数量限制，可能之前超出的现在变成有效的了
+  checkFileValidity()
+  return true
+}
+
+function removeInvalidFile(uid) {
+  const index = allFiles.value.findIndex(f => f.uid === uid)
+  if (index > -1) {
+    allFiles.value.splice(index, 1)
+  }
+}
+
 async function handleUpload() {
-  if (fileList.value.length === 0) {
-    message.warning('请选择要上传的图片')
+  const filesToUpload = validFiles.value
+
+  if (filesToUpload.length === 0) {
+    message.warning('没有可上传的有效图片')
     return
   }
 
@@ -169,7 +263,7 @@ async function handleUpload() {
   showResult.value = false
 
   // 初始化进度列表
-  uploadingItems.value = fileList.value.map(file => ({
+  uploadingItems.value = filesToUpload.map(file => ({
     fileName: file.name,
     status: 'pending',
     stepText: '等待处理...',
@@ -177,7 +271,7 @@ async function handleUpload() {
   }))
 
   const formData = new FormData()
-  fileList.value.forEach(file => {
+  filesToUpload.forEach(file => {
     formData.append('images', file.originFileObj || file)
   })
 
@@ -235,7 +329,8 @@ async function handleUpload() {
   } finally {
     uploading.value = false
     showResult.value = true
-    fileList.value = []
+    // 只清除有效文件，保留无效文件让用户看到
+    allFiles.value = allFiles.value.filter(f => f.invalidReason)
   }
 }
 
@@ -277,6 +372,7 @@ function handleProgressEvent(data) {
 
     case 'done':
       // 全部完成
+      hasShownLimitWarning = false
       if (data.success > 0) {
         message.success(`成功上传 ${data.success} 张图片`)
       }
@@ -288,9 +384,10 @@ function handleProgressEvent(data) {
 }
 
 function handleClear() {
-  fileList.value = []
+  allFiles.value = []
   uploadingItems.value = []
   showResult.value = false
+  hasShownLimitWarning = false
 }
 </script>
 
@@ -365,6 +462,59 @@ function handleClear() {
 .upload-text .sub-text {
   font-size: 13px;
   color: #94a3b8;
+}
+
+/* 无效文件列表 */
+.invalid-section {
+  margin-bottom: 24px;
+  padding: 16px 20px;
+  background: #fef2f2;
+  border-radius: 12px;
+  border: 1px solid #fecaca;
+}
+
+.invalid-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #dc2626;
+}
+
+.invalid-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.invalid-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: white;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.invalid-icon {
+  color: #ef4444;
+  font-size: 14px;
+}
+
+.invalid-name {
+  color: #1e293b;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.invalid-reason {
+  color: #ef4444;
+  font-size: 12px;
 }
 
 .progress-section {
