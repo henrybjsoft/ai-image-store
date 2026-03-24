@@ -118,8 +118,8 @@
             </div>
             <template #overlay>
               <a-menu class="user-menu">
-                <a-menu-item key="profile">
-                  <UserOutlined /> 个人信息
+                <a-menu-item key="password" @click="$router.push('/change-password')">
+                  <KeyOutlined /> 修改密码
                 </a-menu-item>
                 <a-menu-divider />
                 <a-menu-item key="logout" @click="handleLogout">
@@ -177,7 +177,7 @@ import {
   MenuUnfoldOutlined,
   LogoutOutlined,
   SearchOutlined,
-  UserOutlined,
+  KeyOutlined,
   DownOutlined,
   UploadOutlined,
   BgColorsOutlined

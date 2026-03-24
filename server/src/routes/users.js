@@ -126,7 +126,63 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// 修改密码
+// 修改当前用户密码（需验证旧密码）
+router.put('/me/password', async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: '请输入旧密码和新密码'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: '新密码长度至少6个字符'
+      });
+    }
+
+    // 获取当前用户
+    const user = UserRepository.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: '用户不存在'
+      });
+    }
+
+    // 验证旧密码
+    const isValid = await bcrypt.compare(oldPassword, user.password_hash);
+    if (!isValid) {
+      return res.status(400).json({
+        success: false,
+        message: '当前密码错误'
+      });
+    }
+
+    // 更新密码
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    UserRepository.updatePassword(req.user.id, passwordHash);
+
+    LogRepository.create(req.user.id, 'change_password', 'user', req.user.id, `用户修改自己的密码`, req.ip);
+
+    res.json({
+      success: true,
+      message: '密码修改成功'
+    });
+  } catch (error) {
+    console.error('修改密码错误:', error);
+    res.status(500).json({
+      success: false,
+      message: '修改密码失败'
+    });
+  }
+});
+
+// 修改密码（管理员修改其他用户）
 router.put('/:id/password', async (req, res) => {
   try {
     const { id } = req.params;

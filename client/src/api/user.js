@@ -17,6 +17,10 @@ export const userApi = {
     return request.put(`/users/${id}/password`, { password })
   },
 
+  changeOwnPassword(data) {
+    return request.put('/users/me/password', data)
+  },
+
   delete(id) {
     return request.delete(`/users/${id}`)
   }
