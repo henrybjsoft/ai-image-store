@@ -77,22 +77,32 @@
           v-for="item in results"
           :key="item.image.id"
           class="result-card"
-          @click="showPreview(item)"
         >
-          <div class="image-wrapper">
+          <div class="image-wrapper" @click="showPreview(item)">
             <img :src="getImageUrl(item.image)" :alt="item.image.original_name" />
             <div class="image-overlay">
-              <EyeOutlined />
+              <div class="overlay-actions">
+                <div class="action-item" @click.stop="handleFavorite(item.image)">
+                  <HeartFilled v-if="item.image.is_favorite" class="favorited" />
+                  <HeartOutlined v-else />
+                </div>
+                <div class="action-item" @click.stop="handleDownload(item.image)">
+                  <DownloadOutlined />
+                </div>
+                <div class="action-item delete" v-if="canDelete(item.image)" @click.stop="handleDelete(item.image)">
+                  <DeleteOutlined />
+                </div>
+              </div>
             </div>
             <div class="similarity-badge">
               {{ (item.similarity * 100).toFixed(1) }}%
             </div>
           </div>
-          <div class="image-info">
+          <div class="image-info" @click="showPreview(item)">
             <div class="image-name">{{ item.image.original_name }}</div>
             <div class="image-meta">
               <span class="similarity">
-                <BulbOutlined /> 匹配度: {{ (item.similarity * 100).toFixed(2) }}%
+                <BulbOutlined /> {{ (item.similarity * 100).toFixed(2) }}%
               </span>
             </div>
           </div>
@@ -118,7 +128,6 @@
       :similarity="previewItem?.similarity"
       :is-admin="userStore.isAdmin"
       :current-user-id="userStore.user?.id"
-      :show-reanalyze="false"
       @delete="handleDeleteRefresh"
     />
   </div>
@@ -130,12 +139,16 @@ import { message } from 'ant-design-vue'
 import {
   SearchOutlined,
   BulbOutlined,
-  EyeOutlined,
+  HeartOutlined,
+  HeartFilled,
+  DownloadOutlined,
+  DeleteOutlined,
   ArrowDownOutlined
 } from '@ant-design/icons-vue'
 import { searchApi } from '@/api/search'
 import { categoryApi } from '@/api/category'
 import { tagApi } from '@/api/tag'
+import { imageApi } from '@/api/image'
 import ImageDetail from '@/components/ImageDetail.vue'
 import { useUserStore } from '@/stores/user'
 
@@ -273,6 +286,48 @@ function getImageUrl(image, large = false) {
 function showPreview(item) {
   previewItem.value = item
   previewVisible.value = true
+}
+
+// 判断是否可以删除：管理员可删除任何图片，普通用户只能删除自己的图片
+function canDelete(image) {
+  if (userStore.isAdmin) return true
+  if (userStore.user?.id && image.uploaded_by === userStore.user.id) return true
+  return false
+}
+
+async function handleFavorite(image) {
+  try {
+    await imageApi.toggleFavorite(image.id)
+    image.is_favorite = !image.is_favorite
+    message.success(image.is_favorite ? '已收藏' : '已取消收藏')
+  } catch (error) {
+    message.error('操作失败')
+  }
+}
+
+async function handleDownload(image) {
+  try {
+    const res = await imageApi.download(image.id)
+    const blob = new Blob([res])
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = image.original_name
+    link.click()
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    message.error('下载失败')
+  }
+}
+
+async function handleDelete(image) {
+  try {
+    await imageApi.delete(image.id)
+    message.success('已移入回收站')
+    results.value = results.value.filter(r => r.image.id !== image.id)
+  } catch (error) {
+    message.error('删除失败')
+  }
 }
 
 function handleDeleteRefresh() {
@@ -416,7 +471,6 @@ function handleDeleteRefresh() {
   border-radius: 12px;
   overflow: hidden;
   background: #f8fafc;
-  cursor: pointer;
   transition: all 0.3s ease;
 }
 
@@ -429,6 +483,7 @@ function handleDeleteRefresh() {
   position: relative;
   aspect-ratio: 1;
   overflow: hidden;
+  cursor: pointer;
 }
 
 .image-wrapper img {
@@ -445,34 +500,57 @@ function handleDeleteRefresh() {
 .image-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.6) 0%, transparent 50%);
   opacity: 0;
   transition: opacity 0.3s ease;
-  color: white;
-  font-size: 24px;
 }
 
 .result-card:hover .image-overlay {
   opacity: 1;
 }
 
-.similarity-badge {
+.overlay-actions {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  color: white;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 6px;
+  bottom: 12px;
+  right: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.action-item {
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #1e293b;
+}
+
+.action-item:hover {
+  background: white;
+  transform: scale(1.1);
+}
+
+.action-item .favorited {
+  color: #ef4444;
+}
+
+.action-item.delete {
+  color: #ef4444;
+}
+
+.action-item.delete:hover {
+  background: #fee2e2;
+  color: #dc2626;
 }
 
 .image-info {
   padding: 12px;
+  cursor: pointer;
 }
 
 .image-name {

@@ -92,7 +92,7 @@
           <a-button type="primary" @click="handleDownload">
             <DownloadOutlined /> 下载
           </a-button>
-          <a-button class="reanalyze-btn" :loading="reanalyzing" @click="handleReanalyze" v-if="showReanalyze">
+          <a-button class="reanalyze-btn" :loading="reanalyzing" @click="handleReanalyze" v-if="canReanalyze">
             <template #icon><SyncOutlined /></template>
             重新识别
           </a-button>
@@ -132,10 +132,6 @@ const props = defineProps({
     type: Boolean,
     default: true
   },
-  showReanalyze: {
-    type: Boolean,
-    default: true
-  },
   isAdmin: {
     type: Boolean,
     default: false
@@ -169,6 +165,11 @@ const canDelete = computed(() => {
   // 本人可以删除
   if (props.currentUserId && props.image.uploaded_by === props.currentUserId) return true
   return false
+})
+
+// 判断是否可以重新识别：仅管理员可用
+const canReanalyze = computed(() => {
+  return props.isAdmin
 })
 
 function getImageUrl(large = false) {

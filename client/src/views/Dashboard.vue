@@ -75,8 +75,8 @@
     <ImageDetail
       v-model:visible="previewVisible"
       :image="previewImage"
-      :show-delete="false"
-      :show-reanalyze="false"
+      :is-admin="userStore.isAdmin"
+      :current-user-id="userStore.user?.id"
     />
   </div>
 </template>
@@ -90,6 +90,9 @@ import { imageApi } from '@/api/image'
 import { categoryApi } from '@/api/category'
 import { tagApi } from '@/api/tag'
 import ImageDetail from '@/components/ImageDetail.vue'
+import { useUserStore } from '@/stores/user'
+
+const userStore = useUserStore()
 
 const loading = ref(false)
 
