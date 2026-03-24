@@ -31,7 +31,10 @@ export const imageApi = {
   },
 
   download(id) {
-    return `/api/images/download/${id}`
+    // 使用带认证的请求下载
+    return request.get(`/images/download/${id}`, {
+      responseType: 'blob'
+    })
   },
 
   batchDownload(ids) {
@@ -54,5 +57,9 @@ export const imageApi = {
 
   removeTag(id, tagId) {
     return request.delete(`/images/${id}/tags/${tagId}`)
+  },
+
+  reanalyze(id) {
+    return request.post(`/images/${id}/reanalyze`)
   }
 }

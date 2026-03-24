@@ -118,11 +118,19 @@ async function handleUnfavorite(image) {
   }
 }
 
-function handleDownload(image) {
-  const link = document.createElement('a')
-  link.href = imageApi.download(image.id)
-  link.download = image.original_name
-  link.click()
+async function handleDownload(image) {
+  try {
+    const res = await imageApi.download(image.id)
+    const blob = new Blob([res])
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = image.original_name
+    link.click()
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    message.error('下载失败')
+  }
 }
 </script>
 

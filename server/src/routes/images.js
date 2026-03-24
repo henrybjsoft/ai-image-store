@@ -17,6 +17,15 @@ const router = express.Router();
 const UPLOAD_DIR = path.join(__dirname, '../../uploads');
 const THUMBNAIL_DIR = path.join(UPLOAD_DIR, 'thumbnails');
 
+// 修复中文文件名乱码 - multer 使用 latin1 编码，需要转换为 utf8
+function decodeFilename(originalname) {
+  try {
+    return Buffer.from(originalname, 'latin1').toString('utf8');
+  } catch {
+    return originalname;
+  }
+}
+
 // 确保上传目录存在
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -118,6 +127,9 @@ router.post('/upload', authenticateToken, upload.array('images', MAX_FILES), asy
 
     for (const file of req.files) {
       try {
+        // 修复中文文件名乱码
+        const originalName = decodeFilename(file.originalname);
+
         // 获取图片尺寸
         const dimensions = await getImageDimensions(file.path);
 
@@ -139,11 +151,11 @@ router.post('/upload', authenticateToken, upload.array('images', MAX_FILES), asy
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           file.filename,
-          file.originalname,
+          originalName,
           relativeFilePath,
           relativeThumbnailPath,
           file.size,
-          path.extname(file.originalname).toLowerCase().slice(1),
+          path.extname(originalName).toLowerCase().slice(1),
           dimensions.width,
           dimensions.height,
           aiResult.description,
@@ -161,16 +173,17 @@ router.post('/upload', authenticateToken, upload.array('images', MAX_FILES), asy
         results.push({
           id: imageId,
           filename: file.filename,
-          original_name: file.originalname,
+          original_name: originalName,
           success: true
         });
 
-        await logAction(req.user.id, 'upload_image', 'image', imageId, `上传图片: ${file.originalname}`, req.ip);
+        await logAction(req.user.id, 'upload_image', 'image', imageId, `上传图片: ${originalName}`, req.ip);
       } catch (error) {
         console.error('处理图片失败:', error);
+        const originalName = decodeFilename(file.originalname);
         results.push({
           filename: file.filename,
-          original_name: file.originalname,
+          original_name: originalName,
           success: false,
           error: error.message
         });
@@ -453,7 +466,9 @@ router.get('/download/:id', authenticateToken, (req, res) => {
       });
     }
 
-    res.download(image.file_path, image.original_name);
+    // 将相对路径转换为绝对路径
+    const absolutePath = path.join(UPLOAD_DIR, image.file_path);
+    res.download(absolutePath, image.original_name);
   } catch (error) {
     console.error('下载图片错误:', error);
     res.status(500).json({
@@ -496,8 +511,10 @@ router.post('/batch-download', authenticateToken, (req, res) => {
     archive.pipe(res);
 
     for (const image of images) {
-      if (fs.existsSync(image.file_path)) {
-        archive.file(image.file_path, { name: image.original_name });
+      // 将相对路径转换为绝对路径
+      const absolutePath = path.join(UPLOAD_DIR, image.file_path);
+      if (fs.existsSync(absolutePath)) {
+        archive.file(absolutePath, { name: image.original_name });
       }
     }
 
@@ -645,6 +662,73 @@ router.delete('/:id/tags/:tagId', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: '移除标签失败'
+    });
+  }
+});
+
+// 重新识别图片（AI重新生成描述和关键词）
+router.post('/:id/reanalyze', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const db = getDatabase();
+
+    const image = db.prepare('SELECT * FROM images WHERE id = ? AND is_deleted = 0').get(id);
+    if (!image) {
+      return res.status(404).json({
+        success: false,
+        message: '图片不存在'
+      });
+    }
+
+    // 获取图片绝对路径
+    const absolutePath = path.join(UPLOAD_DIR, image.file_path);
+    if (!fs.existsSync(absolutePath)) {
+      return res.status(404).json({
+        success: false,
+        message: '图片文件不存在'
+      });
+    }
+
+    // 调用 AI 重新识别
+    const aiResult = await processImageWithAI(absolutePath);
+
+    // 更新数据库
+    db.prepare(`
+      UPDATE images SET
+        description = ?,
+        keywords = ?,
+        category_id = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(
+      aiResult.description,
+      JSON.stringify(aiResult.keywords),
+      aiResult.categoryId,
+      id
+    );
+
+    // 更新向量数据库
+    await removeImageVector(id);
+    const embedding = await getEmbedding(aiResult.description);
+    await addImageVector(id, embedding);
+
+    await logAction(req.user.id, 'reanalyze_image', 'image', id, `重新识别图片: ${image.original_name}`, req.ip);
+
+    res.json({
+      success: true,
+      message: '重新识别成功',
+      data: {
+        description: aiResult.description,
+        keywords: aiResult.keywords,
+        categoryId: aiResult.categoryId,
+        categoryName: aiResult.categoryId ? db.prepare('SELECT name FROM categories WHERE id = ?').get(aiResult.categoryId)?.name : null
+      }
+    });
+  } catch (error) {
+    console.error('重新识别图片错误:', error);
+    res.status(500).json({
+      success: false,
+      message: '重新识别失败'
     });
   }
 });

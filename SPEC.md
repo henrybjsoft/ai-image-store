@@ -89,6 +89,7 @@
 - 上传前格式和大小校验
 - 实时进度条显示
 - 上传成功/失败状态反馈
+- **支持中文文件名**：自动处理中文编码，正确保存和显示
 
 #### 3.2.2 图片上传处理流程
 
@@ -185,6 +186,14 @@
 - 添加/编辑标签
 - 调整分类
 - 删除操作
+- **重新识别**：重新调用 AI 分析图片，更新描述、关键词、分类和向量
+
+#### 3.4.3 重新识别功能
+- 在图片详情弹窗中点击"重新识别"按钮
+- 重新调用 DashScope Qwen3.5-plus 分析图片内容
+- 更新图片描述、关键词、分类
+- 更新向量数据库中的向量表示
+- 实时刷新界面显示
 
 ### 3.5 搜索模块
 
@@ -211,9 +220,10 @@
 - 图片缩放
 
 #### 3.6.2 下载功能
-- 单张下载
+- 单张下载（需要认证，携带 JWT Token）
 - 批量下载（打包 ZIP）
 - 下载进度显示
+- 支持中文文件名
 
 #### 3.6.3 删除功能
 - 单张删除
@@ -388,12 +398,13 @@ CREATE TABLE logs (
 | PUT | /api/images/:id | 更新图片信息 |
 | DELETE | /api/images/:id | 删除图片 |
 | POST | /api/images/batch-delete | 批量删除 |
-| GET | /api/images/download/:id | 下载单张图片 |
-| POST | /api/images/batch-download | 批量下载 |
+| GET | /api/images/download/:id | 下载单张图片（需认证） |
+| POST | /api/images/batch-download | 批量下载（需认证） |
 | PUT | /api/images/:id/favorite | 收藏/取消收藏 |
 | PUT | /api/images/:id/category | 调整分类 |
 | POST | /api/images/:id/tags | 为图片添加标签 |
 | DELETE | /api/images/:id/tags/:tagId | 移除图片标签 |
+| POST | /api/images/:id/reanalyze | 重新识别图片（AI重新分析） |
 
 ### 5.4 分类管理 API
 
@@ -455,8 +466,10 @@ CREATE TABLE logs (
 ### 6.3 安全要求
 - 密码加密存储（bcrypt）
 - JWT Token 认证
+- 所有 API 请求需携带 Token（包括下载请求）
 - 文件上传格式校验
 - 防止目录遍历攻击
+- 中文文件名编码处理，防止乱码
 
 ### 6.4 兼容性要求
 - 支持 Windows 10/11
@@ -570,3 +583,4 @@ ALLOWED_FORMATS=jpg,jpeg,png,webp,gif,svg
 | 日期 | 版本 | 说明 |
 |------|------|------|
 | 2026-03-23 | v1.0.0 | 初始版本，完成核心功能开发 |
+| 2026-03-24 | v1.1.0 | 功能增强：<br>- 新增图片重新识别功能，支持重新调用AI分析并更新描述、关键词、分类和向量<br>- 修复中文文件名乱码问题，支持中文文件名上传和下载<br>- 改进下载功能，所有下载请求需携带JWT Token认证<br>- 优化导航栏布局样式<br>- 修复AI描述生成解析问题（支持数组格式响应） |

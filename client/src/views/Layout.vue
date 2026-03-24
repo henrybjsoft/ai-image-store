@@ -309,8 +309,9 @@ function handleLogout() {
 /* 头部样式 */
 .layout-header {
   background: white;
-  padding: 0 24px;
-  height: 72px;
+  padding: 0 24px !important;
+  height: 72px !important;
+  line-height: 72px !important;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -324,6 +325,7 @@ function handleLogout() {
   display: flex;
   align-items: center;
   gap: 20px;
+  height: 100%;
 }
 
 .collapse-btn {
@@ -336,6 +338,7 @@ function handleLogout() {
   cursor: pointer;
   color: #64748b;
   transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
 .collapse-btn:hover {
@@ -345,6 +348,7 @@ function handleLogout() {
 
 .search-wrapper {
   width: 320px;
+  flex-shrink: 0;
 }
 
 .search-input {
@@ -353,16 +357,19 @@ function handleLogout() {
 
 .search-input :deep(.ant-input) {
   border-radius: 10px 0 0 10px;
+  height: 40px;
 }
 
 .search-input :deep(.ant-input-search-button) {
   border-radius: 0 10px 10px 0;
+  height: 40px;
 }
 
 .header-right {
   display: flex;
   align-items: center;
   gap: 16px;
+  height: 100%;
 }
 
 .upload-btn {

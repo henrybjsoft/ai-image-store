@@ -222,6 +222,9 @@
             <a-button type="primary" @click="handleDownload(previewImage)">
               <DownloadOutlined /> 下载
             </a-button>
+            <a-button :loading="reanalyzing" @click="handleReanalyze(previewImage)">
+              <SyncOutlined /> 重新识别
+            </a-button>
             <a-button @click="handleFavorite(previewImage)">
               <HeartFilled v-if="previewImage.is_favorite" style="color: #ef4444" />
               <HeartOutlined v-else />
@@ -262,7 +265,8 @@ import {
   HeartFilled,
   DownloadOutlined,
   DeleteOutlined,
-  BulbOutlined
+  BulbOutlined,
+  SyncOutlined
 } from '@ant-design/icons-vue'
 import { imageApi } from '@/api/image'
 import { categoryApi } from '@/api/category'
@@ -284,6 +288,7 @@ const previewVisible = ref(false)
 const previewImage = ref(null)
 const showSemanticSearch = ref(false)
 const semanticQuery = ref('')
+const reanalyzing = ref(false)
 
 const pagination = reactive({
   current: 1,
@@ -389,11 +394,19 @@ async function handleFavorite(image) {
   }
 }
 
-function handleDownload(image) {
-  const link = document.createElement('a')
-  link.href = imageApi.download(image.id)
-  link.download = image.original_name
-  link.click()
+async function handleDownload(image) {
+  try {
+    const res = await imageApi.download(image.id)
+    const blob = new Blob([res])
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = image.original_name
+    link.click()
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    message.error('下载失败')
+  }
 }
 
 async function handleDelete(image) {
@@ -429,6 +442,25 @@ async function handleBatchDelete() {
     loadImages()
   } catch (error) {
     message.error('删除失败')
+  }
+}
+
+async function handleReanalyze(image) {
+  reanalyzing.value = true
+  try {
+    const res = await imageApi.reanalyze(image.id)
+    message.success('重新识别成功')
+    // 更新当前图片信息
+    image.description = res.data.description
+    image.keywords = res.data.keywords
+    if (res.data.categoryId) {
+      image.category_id = res.data.categoryId
+      image.category_name = res.data.categoryName
+    }
+  } catch (error) {
+    message.error('重新识别失败')
+  } finally {
+    reanalyzing.value = false
   }
 }
 
