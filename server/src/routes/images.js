@@ -8,7 +8,7 @@ const archiver = require('archiver');
 const { ImageRepository, TagRepository, CategoryRepository, LogRepository } = require('../repository');
 const { authenticateToken } = require('../middlewares/auth');
 const { processImageWithAI, getEmbedding } = require('../services/aiService');
-const { addImageVector, removeImageVector } = require('../services/vectorService');
+const { addImageVector, removeImageVector, buildEmbeddingText } = require('../services/vectorService');
 
 const router = express.Router();
 
@@ -265,7 +265,7 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
           progress: 90
         });
 
-        const embedding = await getEmbedding(aiResult.description);
+        const embedding = await getEmbedding(buildEmbeddingText(aiResult.description, aiResult.extractedText));
         await addImageVector(imageId, embedding);
 
         // 完成
@@ -372,7 +372,7 @@ router.post('/upload', authenticateToken, upload.array('images', MAX_FILES), asy
         });
 
         // 获取描述的向量并存储
-        const embedding = await getEmbedding(aiResult.description);
+        const embedding = await getEmbedding(buildEmbeddingText(aiResult.description, aiResult.extractedText));
         await addImageVector(imageId, embedding);
 
         results.push({
@@ -805,12 +805,13 @@ router.post('/:id/reanalyze', authenticateToken, async (req, res) => {
     ImageRepository.updateAIResult(id, {
       description: aiResult.description,
       keywords: JSON.stringify(aiResult.keywords),
-      categoryId: aiResult.categoryId
+      categoryId: aiResult.categoryId,
+      extractedText: aiResult.extractedText
     });
 
     // 更新向量数据库
     await removeImageVector(id);
-    const embedding = await getEmbedding(aiResult.description);
+    const embedding = await getEmbedding(buildEmbeddingText(aiResult.description, aiResult.extractedText));
     await addImageVector(id, embedding);
 
     LogRepository.create(req.user.id, 'reanalyze_image', 'image', id, `重新识别图片: ${image.original_name}`, req.ip);

@@ -321,7 +321,7 @@ const ImageRepository = {
   // 获取所有图片的描述（用于重建向量索引）
   findAllDescriptions() {
     const db = getDatabase();
-    return db.prepare('SELECT id, description FROM images WHERE is_deleted = 0').all();
+    return db.prepare('SELECT id, description, extracted_text FROM images WHERE is_deleted = 0').all();
   }
 };
 

@@ -108,6 +108,15 @@ function getVectorByImageId(imageId) {
   return vectors[imageId]?.embedding || null;
 }
 
+// 构建用于向量化的文本（描述+识别文字）
+function buildEmbeddingText(description, extractedText) {
+  let text = description || '';
+  if (extractedText && extractedText.trim()) {
+    text += ' 图片中的文字：' + extractedText.trim();
+  }
+  return text;
+}
+
 // 重建索引（从数据库恢复）
 async function rebuildIndex() {
   const images = ImageRepository.findAllDescriptions();
@@ -118,7 +127,7 @@ async function rebuildIndex() {
   for (const image of images) {
     if (image.description) {
       try {
-        const embedding = await getEmbedding(image.description);
+        const embedding = await getEmbedding(buildEmbeddingText(image.description, image.extracted_text));
         vectors[image.id] = {
           embedding,
           metadata: {},
@@ -140,5 +149,6 @@ module.exports = {
   removeImageVector,
   searchSimilar,
   getVectorByImageId,
-  rebuildIndex
+  rebuildIndex,
+  buildEmbeddingText
 };
