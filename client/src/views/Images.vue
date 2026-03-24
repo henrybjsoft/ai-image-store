@@ -3,6 +3,9 @@
     <!-- 顶部筛选栏 -->
     <div class="filter-bar">
       <div class="filter-left">
+        <div class="total-count" v-if="pagination.total > 0">
+          共 <span class="count-number">{{ pagination.total }}</span> 张图片
+        </div>
         <a-tree-select
           v-model:value="selectedCategory"
           :tree-data="categoryTree"
@@ -535,6 +538,20 @@ watch(() => route.query.keyword, (newKeyword) => {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.total-count {
+  font-size: 14px;
+  color: #64748b;
+  padding: 6px 14px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.count-number {
+  color: #6366f1;
+  font-weight: 600;
 }
 
 .filter-select {

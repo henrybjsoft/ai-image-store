@@ -150,6 +150,19 @@ body {
   border-color: var(--primary-color) !important;
 }
 
+.ant-pagination-item-active a {
+  color: white !important;
+}
+
+.ant-pagination-item-active:hover a {
+  color: white !important;
+}
+
+/* 分页器选项样式 */
+.ant-pagination-options .ant-select-selector {
+  border-radius: var(--radius-sm) !important;
+}
+
 /* 菜单样式 */
 .ant-menu-item {
   border-radius: var(--radius-md) !important;
