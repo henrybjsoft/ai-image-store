@@ -339,7 +339,7 @@ async function handleReanalyze() {
 }
 
 .preview-sidebar {
-  width: 320px;
+  width: 420px;
   padding: 24px;
   background: white;
   overflow-y: auto;
