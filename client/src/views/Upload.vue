@@ -47,19 +47,24 @@
         </div>
       </div>
 
+      <!-- 上传区域 -->
       <div class="upload-area">
-        <a-upload-dragger
-          :file-list="displayFileList"
-          :multiple="true"
-          :before-upload="beforeUpload"
-          :accept="acceptTypes"
-          :remove="handleRemoveValidFile"
-          list-type="picture-card"
-          :show-upload-list="{ showPreviewIcon: false, showRemoveIcon: true }"
-          class="uploader"
-          @change="handleFileChange"
-          @preview="handlePreview"
+        <div
+          class="upload-dropzone"
+          :class="{ 'dragover': isDragover }"
+          @click="triggerFileSelect"
+          @dragover.prevent="handleDragover"
+          @dragleave.prevent="handleDragleave"
+          @drop.prevent="handleDrop"
         >
+          <input
+            ref="fileInputRef"
+            type="file"
+            multiple
+            :accept="acceptTypes"
+            style="display: none"
+            @change="handleFileInputChange"
+          />
           <div class="upload-content">
             <div class="upload-icon">
               <CloudUploadOutlined />
@@ -69,58 +74,86 @@
               <p class="sub-text">支持批量上传，AI 将自动识别并分类</p>
             </div>
           </div>
-        </a-upload-dragger>
+        </div>
       </div>
 
-      <!-- 文件列表（显示无效文件） -->
-      <div v-if="invalidFiles.length > 0" class="invalid-section">
-        <div class="invalid-header">
-          <ExclamationCircleOutlined />
-          <span>以下文件不符合要求，将被跳过</span>
-        </div>
-        <div class="invalid-list">
-          <div v-for="file in invalidFiles" :key="file.uid" class="invalid-item">
-            <CloseCircleOutlined class="invalid-icon" />
-            <span class="invalid-name">{{ file.name }}</span>
-            <span class="invalid-reason">{{ file.invalidReason }}</span>
-            <a-button type="link" size="small" @click="removeInvalidFile(file.uid)">移除</a-button>
+      <!-- 文件列表 -->
+      <div v-if="allFiles.length > 0" class="file-list-section">
+        <!-- 有效文件列表 -->
+        <div v-if="validFiles.length > 0" class="valid-files">
+          <div class="list-header">
+            <span>待上传文件 ({{ validFiles.length }} 张)</span>
+            <span class="total-size">共 {{ formatTotalSize(validFiles) }}</span>
           </div>
-        </div>
-      </div>
-
-      <!-- 上传进度列表 -->
-      <div v-if="uploadingItems.length > 0" class="progress-section">
-        <div class="progress-header">
-          <span>处理进度</span>
-          <span>{{ completedCount }} / {{ uploadingItems.length }}</span>
-        </div>
-        <div class="progress-list">
-          <div
-            v-for="item in uploadingItems"
-            :key="item.fileName"
-            class="progress-item"
-            :class="item.status"
-          >
-            <div class="item-info">
-              <div class="item-name">{{ item.fileName }}</div>
-              <div class="item-step" v-if="item.status === 'processing'">
-                <LoadingOutlined class="spinning" />
-                {{ item.stepText }}
+          <div class="file-grid">
+            <div
+              v-for="file in validFiles"
+              :key="file.uid"
+              class="file-card"
+              :class="file.uploadStatus"
+            >
+              <div class="card-thumbnail" @click="handlePreview(file)">
+                <img v-if="file.thumbUrl" :src="file.thumbUrl" :alt="file.name" />
+                <div v-else class="placeholder-icon">
+                  <FileImageOutlined />
+                </div>
+                <div class="preview-overlay">
+                  <EyeOutlined />
+                </div>
               </div>
-              <div class="item-step success" v-else-if="item.status === 'success'">
-                <CheckCircleFilled /> 上传成功
+              <div class="card-info">
+                <div class="card-name" :title="file.name">{{ file.name }}</div>
+                <div class="card-meta">
+                  <span class="card-size">{{ formatSize(file.size) }}</span>
+                </div>
+                <!-- 进度条 -->
+                <div v-if="file.uploadStatus === 'uploading'" class="card-progress">
+                  <a-progress
+                    :percent="file.uploadProgress"
+                    :show-info="false"
+                    :stroke-color="progressColors"
+                    size="small"
+                  />
+                  <div class="progress-text">
+                    <LoadingOutlined class="spinning" />
+                    {{ file.uploadStepText }}
+                  </div>
+                </div>
+                <div v-else-if="file.uploadStatus === 'success'" class="card-status success">
+                  <CheckCircleFilled /> 上传成功
+                </div>
+                <div v-else-if="file.uploadStatus === 'error'" class="card-status error">
+                  <CloseCircleFilled /> {{ file.uploadError || '上传失败' }}
+                </div>
               </div>
-              <div class="item-step error" v-else-if="item.status === 'error'">
-                <CloseCircleFilled /> {{ item.error || '处理失败' }}
+              <div class="card-actions">
+                <a-button
+                  v-if="!uploading"
+                  type="text"
+                  size="small"
+                  danger
+                  @click="removeFile(file.uid)"
+                >
+                  <DeleteOutlined />
+                </a-button>
               </div>
             </div>
-            <div class="item-progress" v-if="item.status === 'processing'">
-              <a-progress
-                :percent="item.progress"
-                :show-info="false"
-                :stroke-color="progressColors"
-                size="small"
-              />
+          </div>
+        </div>
+
+        <!-- 无效文件列表 -->
+        <div v-if="invalidFiles.length > 0" class="invalid-section">
+          <div class="invalid-header">
+            <ExclamationCircleOutlined />
+            <span>以下文件不符合要求，将被跳过</span>
+          </div>
+          <div class="invalid-list">
+            <div v-for="file in invalidFiles" :key="file.uid" class="invalid-item">
+              <CloseCircleOutlined class="invalid-icon" />
+              <span class="invalid-name">{{ file.name }}</span>
+              <span class="invalid-size">{{ formatSize(file.size) }}</span>
+              <span class="invalid-reason">{{ file.invalidReason }}</span>
+              <a-button type="link" size="small" @click="removeFile(file.uid)">移除</a-button>
             </div>
           </div>
         </div>
@@ -129,12 +162,12 @@
       <!-- 上传结果统计 -->
       <div v-if="showResult" class="result-summary">
         <a-alert
-          :type="failedCount > 0 ? 'warning' : 'success'"
+          :type="uploadResult.failed > 0 ? 'warning' : 'success'"
           show-icon
         >
           <template #message>
-            <span v-if="successCount > 0">成功上传 {{ successCount }} 张图片</span>
-            <span v-if="failedCount > 0">，{{ failedCount }} 张失败</span>
+            <span v-if="uploadResult.success > 0">成功上传 {{ uploadResult.success }} 张图片</span>
+            <span v-if="uploadResult.failed > 0">，{{ uploadResult.failed }} 张失败</span>
           </template>
         </a-alert>
       </div>
@@ -178,7 +211,10 @@ import {
   CloseCircleFilled,
   LoadingOutlined,
   ExclamationCircleOutlined,
-  SettingOutlined
+  SettingOutlined,
+  DeleteOutlined,
+  EyeOutlined,
+  FileImageOutlined
 } from '@ant-design/icons-vue'
 import { getToken } from '@/utils/auth'
 import { categoryApi } from '@/api/category'
@@ -188,11 +224,19 @@ import { useUserStore } from '@/stores/user'
 
 const userStore = useUserStore()
 
-// 所有文件列表（包含有效和无效）
+// 文件列表
 const allFiles = ref([])
 const uploading = ref(false)
-const uploadingItems = ref([])
 const showResult = ref(false)
+
+// 上传结果统计
+const uploadResult = ref({ success: 0, failed: 0 })
+
+// 文件输入引用
+const fileInputRef = ref(null)
+
+// 拖拽状态
+const isDragover = ref(false)
 
 // 配额信息
 const quotaInfo = ref({ quota: 0, imageCount: 0, role: 'user' })
@@ -236,25 +280,6 @@ const validFiles = computed(() => {
   return allFiles.value.filter(file => !file.invalidReason)
 })
 
-// 显示在上传组件中的文件列表（只显示有效文件）
-const displayFileList = computed(() => {
-  return validFiles.value
-})
-
-const completedCount = computed(() => {
-  return uploadingItems.value.filter(item =>
-    item.status === 'success' || item.status === 'error'
-  ).length
-})
-
-const successCount = computed(() => {
-  return uploadingItems.value.filter(item => item.status === 'success').length
-})
-
-const failedCount = computed(() => {
-  return uploadingItems.value.filter(item => item.status === 'error').length
-})
-
 onMounted(async () => {
   await loadOptions()
   await loadQuotaInfo()
@@ -282,50 +307,99 @@ async function loadQuotaInfo() {
   }
 }
 
-// 处理文件变化
-function handleFileChange(info) {
-  // 更新所有文件列表
-  allFiles.value = info.fileList.map(file => {
-    // 保留已有的 invalidReason
-    if (!file.invalidReason) {
-      file.invalidReason = null
+// 格式化文件大小
+function formatSize(bytes) {
+  if (!bytes) return '0 B'
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+}
+
+// 格式化总大小
+function formatTotalSize(files) {
+  const total = files.reduce((sum, f) => sum + (f.size || 0), 0)
+  return formatSize(total)
+}
+
+// 触发文件选择
+function triggerFileSelect() {
+  fileInputRef.value?.click()
+}
+
+// 处理文件输入变化
+function handleFileInputChange(e) {
+  const files = Array.from(e.target.files || [])
+  processFiles(files)
+  // 清空 input 以便可以再次选择相同文件
+  e.target.value = ''
+}
+
+// 处理拖拽进入
+function handleDragover() {
+  isDragover.value = true
+}
+
+// 处理拖拽离开
+function handleDragleave() {
+  isDragover.value = false
+}
+
+// 处理拖放
+function handleDrop(e) {
+  isDragover.value = false
+  const files = Array.from(e.dataTransfer.files || [])
+  processFiles(files)
+}
+
+// 处理文件
+let hasShownLimitWarning = false
+let hasShownQuotaWarning = false
+
+function processFiles(files) {
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']
+
+  files.forEach(file => {
+    const uid = Date.now() + '_' + Math.random().toString(36).slice(2, 11)
+
+    // 检查格式和大小
+    let invalidReason = null
+    if (!allowedTypes.includes(file.type)) {
+      invalidReason = '格式不支持'
+    } else if (file.size > maxFileSize) {
+      invalidReason = `超过10MB限制 (${(file.size / 1024 / 1024).toFixed(1)}MB)`
     }
-    return file
+
+    const fileItem = {
+      uid,
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      originFileObj: file,
+      thumbUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+      invalidReason,
+      uploadStatus: 'pending', // pending, uploading, success, error
+      uploadProgress: 0,
+      uploadStepText: '',
+      uploadError: ''
+    }
+
+    allFiles.value.push(fileItem)
   })
 
-  // 检查每个文件的有效性
+  // 重新检查数量限制
   checkFileValidity()
 }
 
 // 检查文件有效性
-let hasShownLimitWarning = false
-let hasShownQuotaWarning = false
-
 function checkFileValidity() {
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']
-
-  // 先检查格式和大小
-  allFiles.value.forEach(file => {
-    const isAllowed = allowedTypes.includes(file.type)
-
-    if (!isAllowed) {
-      file.invalidReason = '格式不支持'
-    } else if (file.size > maxFileSize) {
-      file.invalidReason = `超过10MB限制 (${(file.size / 1024 / 1024).toFixed(1)}MB)`
-    } else if (!file.invalidReason || file.invalidReason.startsWith('超出数量限制') || file.invalidReason.startsWith('超出配额限制')) {
-      // 格式和大小都有效，清除之前的数量限制标记（后面会重新计算）
-      file.invalidReason = null
-    }
-  })
-
-  // 计算剩余配额（普通用户）
   const remainingQuota = !userStore.isAdmin && quotaInfo.value.quota > 0
     ? quotaInfo.value.quota - quotaInfo.value.imageCount
     : null
 
-  // 再检查数量限制
   let validCount = 0
-  allFiles.value.forEach(file => {
+  const validFilesList = allFiles.value.filter(f => !f.invalidReason || f.invalidReason.startsWith('超出数量限制') || f.invalidReason.startsWith('超出配额限制'))
+
+  validFilesList.forEach(file => {
     // 跳过已经因为格式/大小被标记为无效的
     if (file.invalidReason && !file.invalidReason.startsWith('超出数量限制') && !file.invalidReason.startsWith('超出配额限制')) {
       return
@@ -342,6 +416,8 @@ function checkFileValidity() {
     // 检查配额限制（普通用户）
     if (remainingQuota !== null && validCount > remainingQuota) {
       file.invalidReason = `超出配额限制（剩余${remainingQuota}张）`
+    } else {
+      file.invalidReason = null
     }
   })
 
@@ -352,37 +428,30 @@ function checkFileValidity() {
     hasShownLimitWarning = true
   }
 
-  // 显示配额警告
   if (remainingQuota !== null && currentValidCount > remainingQuota && !hasShownQuotaWarning) {
     message.warning(`剩余配额 ${remainingQuota} 张，已自动跳过超出部分`)
     hasShownQuotaWarning = true
   }
 }
 
-function beforeUpload() {
-  // 返回 false 阻止自动上传，我们手动控制
-  return false
-}
-
-function handleRemoveValidFile(file) {
-  const index = allFiles.value.findIndex(f => f.uid === file.uid)
-  if (index > -1) {
-    allFiles.value.splice(index, 1)
-  }
-  // 重新检查数量限制，可能之前超出的现在变成有效的了
-  checkFileValidity()
-  return true
-}
-
-function removeInvalidFile(uid) {
+// 移除文件
+function removeFile(uid) {
   const index = allFiles.value.findIndex(f => f.uid === uid)
   if (index > -1) {
+    const file = allFiles.value[index]
+    // 释放 blob URL
+    if (file.thumbUrl && file.thumbUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(file.thumbUrl)
+    }
     allFiles.value.splice(index, 1)
   }
+  // 重新检查数量限制
+  checkFileValidity()
 }
 
+// 上传
 async function handleUpload() {
-  const filesToUpload = validFiles.value
+  const filesToUpload = validFiles.value.filter(f => f.uploadStatus !== 'success')
 
   if (filesToUpload.length === 0) {
     message.warning('没有可上传的有效图片')
@@ -391,18 +460,18 @@ async function handleUpload() {
 
   uploading.value = true
   showResult.value = false
+  uploadResult.value = { success: 0, failed: 0 }
 
-  // 初始化进度列表
-  uploadingItems.value = filesToUpload.map(file => ({
-    fileName: file.name,
-    status: 'pending',
-    stepText: '等待处理...',
-    progress: 0
-  }))
+  // 初始化上传状态
+  filesToUpload.forEach(file => {
+    file.uploadStatus = 'uploading'
+    file.uploadProgress = 0
+    file.uploadStepText = '等待处理...'
+  })
 
   const formData = new FormData()
   filesToUpload.forEach(file => {
-    formData.append('images', file.originFileObj || file)
+    formData.append('images', file.originFileObj)
   })
 
   // 添加可选的分类和标签
@@ -414,7 +483,6 @@ async function handleUpload() {
   }
 
   try {
-    // 使用 fetch 发送请求并接收 SSE
     const response = await fetch('/api/images/upload-progress', {
       method: 'POST',
       headers: {
@@ -443,7 +511,7 @@ async function handleUpload() {
         if (line.startsWith('data: ')) {
           try {
             const data = JSON.parse(line.slice(6))
-            handleProgressEvent(data)
+            handleProgressEvent(data, filesToUpload)
           } catch (e) {
             console.error('解析进度数据失败:', e)
           }
@@ -451,11 +519,10 @@ async function handleUpload() {
       }
     }
 
-    // 处理最后可能剩余的数据
     if (buffer.startsWith('data: ')) {
       try {
         const data = JSON.parse(buffer.slice(6))
-        handleProgressEvent(data)
+        handleProgressEvent(data, filesToUpload)
       } catch (e) {
         // 忽略解析错误
       }
@@ -467,54 +534,53 @@ async function handleUpload() {
   } finally {
     uploading.value = false
     showResult.value = true
-    // 只清除有效文件，保留无效文件让用户看到
-    allFiles.value = allFiles.value.filter(f => f.invalidReason)
+    // 释放并清除成功的文件
+    allFiles.value.forEach(file => {
+      if (file.uploadStatus === 'success' && file.thumbUrl && file.thumbUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(file.thumbUrl)
+      }
+    })
+    allFiles.value = allFiles.value.filter(f => f.uploadStatus !== 'success')
   }
 }
 
-function handleProgressEvent(data) {
+function handleProgressEvent(data, filesToUpload) {
   switch (data.type) {
-    case 'start':
-      // 开始上传
-      break
-
     case 'progress':
-      // 更新进度
-      const item = uploadingItems.value[data.fileIndex]
-      if (item) {
-        item.status = 'processing'
-        item.step = data.step
-        item.stepText = data.stepText
-        item.progress = data.progress
+      const file = filesToUpload[data.fileIndex]
+      if (file) {
+        file.uploadStatus = 'uploading'
+        file.uploadProgress = data.progress
+        file.uploadStepText = data.stepText
       }
       break
 
     case 'complete':
-      // 单个文件完成
-      const completeItem = uploadingItems.value[data.fileIndex]
-      if (completeItem) {
-        completeItem.status = 'success'
-        completeItem.progress = 100
-        completeItem.imageId = data.result?.id
+      const completeFile = filesToUpload[data.fileIndex]
+      if (completeFile) {
+        completeFile.uploadStatus = 'success'
+        completeFile.uploadProgress = 100
       }
       break
 
     case 'error':
-      // 单个文件失败
-      const errorItem = uploadingItems.value[data.fileIndex]
-      if (errorItem) {
-        errorItem.status = 'error'
-        errorItem.error = data.error
+      const errorFile = filesToUpload[data.fileIndex]
+      if (errorFile) {
+        errorFile.uploadStatus = 'error'
+        errorFile.uploadError = data.error
       }
       break
 
     case 'done':
-      // 全部完成
       hasShownLimitWarning = false
       hasShownQuotaWarning = false
+      // 保存上传结果
+      uploadResult.value = {
+        success: data.success || 0,
+        failed: data.failed || 0
+      }
       if (data.success > 0) {
         message.success(`成功上传 ${data.success} 张图片`)
-        // 重新加载配额信息
         loadQuotaInfo()
       }
       if (data.failed > 0) {
@@ -530,8 +596,11 @@ const previewImage = ref('')
 const previewTitle = ref('')
 
 function handlePreview(file) {
-  // 使用本地文件预览
-  if (file.originFileObj) {
+  if (file.thumbUrl) {
+    previewImage.value = file.thumbUrl
+    previewTitle.value = file.name
+    previewVisible.value = true
+  } else if (file.originFileObj) {
     previewImage.value = URL.createObjectURL(file.originFileObj)
     previewTitle.value = file.name
     previewVisible.value = true
@@ -541,7 +610,6 @@ function handlePreview(file) {
 function handlePreviewClose() {
   previewVisible.value = false
   previewTitle.value = ''
-  // 释放 blob URL
   if (previewImage.value && previewImage.value.startsWith('blob:')) {
     URL.revokeObjectURL(previewImage.value)
   }
@@ -549,9 +617,15 @@ function handlePreviewClose() {
 }
 
 function handleClear() {
+  // 释放所有 blob URL
+  allFiles.value.forEach(file => {
+    if (file.thumbUrl && file.thumbUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(file.thumbUrl)
+    }
+  })
   allFiles.value = []
-  uploadingItems.value = []
   showResult.value = false
+  uploadResult.value = { success: 0, failed: 0 }
   hasShownLimitWarning = false
   hasShownQuotaWarning = false
   handlePreviewClose()
@@ -560,7 +634,7 @@ function handleClear() {
 
 <style scoped>
 .upload-page {
-  max-width: 900px;
+  max-width: 1000px;
   margin: 0 auto;
   animation: fadeIn 0.3s ease;
 }
@@ -634,19 +708,23 @@ function handleClear() {
   width: 100%;
 }
 
+/* 上传区域 */
 .upload-area {
   margin-bottom: 24px;
 }
 
-.uploader {
-  border-radius: 16px !important;
-  background: #f8fafc !important;
-  transition: all 0.3s ease !important;
+.upload-dropzone {
+  border: 2px dashed #e2e8f0;
+  border-radius: 16px;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.3s ease;
 }
 
-.uploader:hover {
-  border-color: #6366f1 !important;
-  background: #f0f4ff !important;
+.upload-dropzone:hover,
+.upload-dropzone.dragover {
+  border-color: #6366f1;
+  background: #f0f4ff;
 }
 
 .upload-content {
@@ -676,9 +754,180 @@ function handleClear() {
   color: #94a3b8;
 }
 
+/* 文件列表区域 */
+.file-list-section {
+  margin-bottom: 24px;
+}
+
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.total-size {
+  color: #64748b;
+  font-weight: 400;
+}
+
+/* 文件网格 */
+.file-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.file-card {
+  background: #f8fafc;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.file-card:hover {
+  background: #f1f5f9;
+}
+
+.file-card.uploading {
+  background: #f0f4ff;
+  border: 1px solid #c7d2fe;
+}
+
+.file-card.success {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+
+.file-card.error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.card-thumbnail {
+  aspect-ratio: 1;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+}
+
+.card-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.placeholder-icon {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e2e8f0;
+  font-size: 32px;
+  color: #94a3b8;
+}
+
+.preview-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+  color: white;
+  font-size: 20px;
+}
+
+.card-thumbnail:hover .preview-overlay {
+  opacity: 1;
+}
+
+.card-info {
+  padding: 12px;
+}
+
+.card-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 4px;
+}
+
+.card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.card-size {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.card-progress {
+  margin-top: 8px;
+}
+
+.progress-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #6366f1;
+  margin-top: 4px;
+}
+
+.card-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.card-status.success {
+  color: #10b981;
+}
+
+.card-status.error {
+  color: #ef4444;
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.card-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.file-card:hover .card-actions {
+  opacity: 1;
+}
+
 /* 无效文件列表 */
 .invalid-section {
-  margin-bottom: 24px;
+  margin-top: 24px;
   padding: 16px 20px;
   background: #fef2f2;
   border-radius: 12px;
@@ -714,6 +963,7 @@ function handleClear() {
 .invalid-icon {
   color: #ef4444;
   font-size: 14px;
+  flex-shrink: 0;
 }
 
 .invalid-name {
@@ -724,98 +974,16 @@ function handleClear() {
   white-space: nowrap;
 }
 
-.invalid-reason {
-  color: #ef4444;
+.invalid-size {
+  color: #94a3b8;
   font-size: 12px;
-}
-
-.progress-section {
-  margin-bottom: 24px;
-  padding: 20px;
-  background: #f8fafc;
-  border-radius: 16px;
-}
-
-.progress-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 16px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #1e293b;
-}
-
-.progress-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.progress-item {
-  background: white;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.progress-item.processing {
-  border-left: 3px solid #6366f1;
-}
-
-.progress-item.success {
-  border-left: 3px solid #10b981;
-}
-
-.progress-item.error {
-  border-left: 3px solid #ef4444;
-}
-
-.item-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.item-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: #1e293b;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-  margin-right: 16px;
-}
-
-.item-step {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: #64748b;
   flex-shrink: 0;
 }
 
-.item-step.success {
-  color: #10b981;
-}
-
-.item-step.error {
+.invalid-reason {
   color: #ef4444;
-}
-
-.item-step .spinning {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.item-progress {
-  margin-top: 4px;
+  font-size: 12px;
+  flex-shrink: 0;
 }
 
 .result-summary {
