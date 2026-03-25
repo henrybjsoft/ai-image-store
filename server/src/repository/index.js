@@ -114,25 +114,23 @@ const ImageRepository = {
 
   // 获取图片列表（带筛选和分页）
   findList(options = {}) {
-    const { categoryId, isFavorite, keyword, uploadedBy, isDeleted = 0, page = 1, pageSize = 20, sortBy = 'created_at', sortOrder = 'DESC' } = options;
+    const { categoryId, userId, keyword, uploadedBy, isDeleted = 0, page = 1, pageSize = 20, sortBy = 'created_at', sortOrder = 'DESC' } = options;
     const db = getDatabase();
 
     let sql = `
-      SELECT i.*, c.name as category_name, u.username as uploader_name
+      SELECT i.*, c.name as category_name, u.username as uploader_name,
+             CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END as is_favorite
       FROM images i
       LEFT JOIN categories c ON i.category_id = c.id
       LEFT JOIN users u ON i.uploaded_by = u.id
+      LEFT JOIN favorites f ON i.id = f.image_id AND f.user_id = ?
       WHERE i.is_deleted = ?
     `;
-    const params = [isDeleted];
+    const params = [userId || 0, isDeleted];
 
     if (categoryId) {
       sql += ' AND i.category_id = ?';
       params.push(categoryId);
-    }
-
-    if (isFavorite === true || isFavorite === 'true') {
-      sql += ' AND i.is_favorite = 1';
     }
 
     if (keyword) {
@@ -147,7 +145,7 @@ const ImageRepository = {
     }
 
     // 计算总数
-    const countSql = sql.replace('SELECT i.*, c.name as category_name, u.username as uploader_name', 'SELECT COUNT(*) as total');
+    const countSql = sql.replace('SELECT i.*, c.name as category_name, u.username as uploader_name,\n             CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END as is_favorite', 'SELECT COUNT(*) as total');
     const total = db.prepare(countSql).get(...params).total;
 
     // 排序和分页
@@ -161,6 +159,11 @@ const ImageRepository = {
     params.push(parseInt(pageSize), (parseInt(page) - 1) * parseInt(pageSize));
 
     const images = db.prepare(sql).all(...params);
+
+    // 获取每张图片的标签
+    for (const image of images) {
+      image.tags = this.getTags(image.id);
+    }
 
     return { list: images, total, page: parseInt(page), pageSize: parseInt(pageSize) };
   },
@@ -242,6 +245,7 @@ const ImageRepository = {
   // 彻底删除
   hardDelete(id) {
     const db = getDatabase();
+    db.prepare('DELETE FROM favorites WHERE image_id = ?').run(id);
     db.prepare('DELETE FROM image_tags WHERE image_id = ?').run(id);
     db.prepare('DELETE FROM images WHERE id = ?').run(id);
   },
@@ -250,6 +254,7 @@ const ImageRepository = {
   hardDeleteBatch(ids) {
     const db = getDatabase();
     const placeholders = ids.map(() => '?').join(',');
+    db.prepare(`DELETE FROM favorites WHERE image_id IN (${placeholders})`).run(...ids);
     db.prepare(`DELETE FROM image_tags WHERE image_id IN (${placeholders})`).run(...ids);
     db.prepare(`DELETE FROM images WHERE id IN (${placeholders})`).run(...ids);
   },
@@ -268,22 +273,12 @@ const ImageRepository = {
 
     if (imageIds.length > 0) {
       const placeholders = imageIds.map(() => '?').join(',');
+      db.prepare(`DELETE FROM favorites WHERE image_id IN (${placeholders})`).run(...imageIds);
       db.prepare(`DELETE FROM image_tags WHERE image_id IN (${placeholders})`).run(...imageIds);
     }
     db.prepare('DELETE FROM images WHERE is_deleted = 1').run();
 
     return deletedImages;
-  },
-
-  // 切换收藏状态
-  toggleFavorite(id) {
-    const db = getDatabase();
-    const image = this.findById(id);
-    if (!image) return null;
-
-    const newStatus = image.is_favorite ? 0 : 1;
-    db.prepare('UPDATE images SET is_favorite = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(newStatus, id);
-    return newStatus;
   },
 
   // 更新分类
@@ -812,6 +807,109 @@ const StatsRepository = {
   }
 };
 
+// ==================== 收藏相关操作 ====================
+
+const FavoriteRepository = {
+  // 检查是否已收藏
+  isFavorited(userId, imageId) {
+    const db = getDatabase();
+    return db.prepare('SELECT id FROM favorites WHERE user_id = ? AND image_id = ?').get(userId, imageId);
+  },
+
+  // 添加收藏
+  add(userId, imageId) {
+    const db = getDatabase();
+    try {
+      db.prepare('INSERT INTO favorites (user_id, image_id) VALUES (?, ?)').run(userId, imageId);
+      return true;
+    } catch (e) {
+      // 已存在则忽略
+      return false;
+    }
+  },
+
+  // 取消收藏
+  remove(userId, imageId) {
+    const db = getDatabase();
+    db.prepare('DELETE FROM favorites WHERE user_id = ? AND image_id = ?').run(userId, imageId);
+  },
+
+  // 切换收藏状态
+  toggle(userId, imageId) {
+    const existing = this.isFavorited(userId, imageId);
+    if (existing) {
+      this.remove(userId, imageId);
+      return false;
+    } else {
+      this.add(userId, imageId);
+      return true;
+    }
+  },
+
+  // 获取用户收藏列表
+  findByUser(userId, options = {}) {
+    const { page = 1, pageSize = 20 } = options;
+    const db = getDatabase();
+
+    const totalResult = db.prepare(`
+      SELECT COUNT(*) as total
+      FROM favorites f
+      JOIN images i ON f.image_id = i.id
+      WHERE f.user_id = ? AND i.is_deleted = 0
+    `).get(userId);
+
+    const total = totalResult.total;
+    const offset = (parseInt(page) - 1) * parseInt(pageSize);
+
+    const images = db.prepare(`
+      SELECT i.*, c.name as category_name, u.username as uploader_name, 1 as is_favorite
+      FROM favorites f
+      JOIN images i ON f.image_id = i.id
+      LEFT JOIN categories c ON i.category_id = c.id
+      LEFT JOIN users u ON i.uploaded_by = u.id
+      WHERE f.user_id = ? AND i.is_deleted = 0
+      ORDER BY f.created_at DESC
+      LIMIT ? OFFSET ?
+    `).all(userId, parseInt(pageSize), offset);
+
+    // 获取每张图片的标签
+    for (const image of images) {
+      image.tags = db.prepare(`
+        SELECT t.* FROM tags t
+        JOIN image_tags it ON t.id = it.tag_id
+        WHERE it.image_id = ?
+      `).all(image.id);
+    }
+
+    return { list: images, total, page: parseInt(page), pageSize: parseInt(pageSize) };
+  },
+
+  // 获取用户收藏数量
+  countByUser(userId) {
+    const db = getDatabase();
+    return db.prepare(`
+      SELECT COUNT(*) as count
+      FROM favorites f
+      JOIN images i ON f.image_id = i.id
+      WHERE f.user_id = ? AND i.is_deleted = 0
+    `).get(userId).count;
+  },
+
+  // 删除图片的所有收藏记录
+  deleteByImage(imageId) {
+    const db = getDatabase();
+    db.prepare('DELETE FROM favorites WHERE image_id = ?').run(imageId);
+  },
+
+  // 批量删除图片的收藏记录
+  deleteByImages(imageIds) {
+    if (!imageIds || imageIds.length === 0) return;
+    const db = getDatabase();
+    const placeholders = imageIds.map(() => '?').join(',');
+    db.prepare(`DELETE FROM favorites WHERE image_id IN (${placeholders})`).run(...imageIds);
+  }
+};
+
 module.exports = {
   UserRepository,
   ImageRepository,
@@ -820,5 +918,6 @@ module.exports = {
   LogRepository,
   SearchRepository,
   VectorRepository,
-  StatsRepository
+  StatsRepository,
+  FavoriteRepository
 };

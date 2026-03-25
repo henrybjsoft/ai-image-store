@@ -60,6 +60,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { HeartOutlined, HeartFilled, DownloadOutlined, DeleteOutlined } from '@ant-design/icons-vue'
 import { imageApi } from '@/api/image'
+import { favoriteApi } from '@/api/favorites'
 import ImageDetail from '@/components/ImageDetail.vue'
 import { useUserStore } from '@/stores/user'
 
@@ -83,10 +84,9 @@ onMounted(() => {
 async function loadImages() {
   loading.value = true
   try {
-    const res = await imageApi.getList({
+    const res = await favoriteApi.getList({
       page: pagination.current,
-      pageSize: pagination.pageSize,
-      isFavorite: true
+      pageSize: pagination.pageSize
     })
     images.value = res.data?.list || []
     pagination.total = res.data?.total || 0

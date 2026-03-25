@@ -5,7 +5,7 @@ const fs = require('fs');
 const sharp = require('sharp');
 const { v4: uuidv4 } = require('uuid');
 const archiver = require('archiver');
-const { ImageRepository, TagRepository, CategoryRepository, LogRepository, UserRepository } = require('../repository');
+const { ImageRepository, TagRepository, CategoryRepository, LogRepository, UserRepository, FavoriteRepository } = require('../repository');
 const { authenticateToken, requireAdmin } = require('../middlewares/auth');
 const { processImageWithAI, getEmbedding } = require('../services/aiService');
 const { addImageVector, removeImageVector, buildEmbeddingText } = require('../services/vectorService');
@@ -527,7 +527,6 @@ router.get('/', authenticateToken, (req, res) => {
   try {
     const {
       categoryId,
-      isFavorite,
       keyword,
       uploadedBy,
       page = 1,
@@ -538,7 +537,7 @@ router.get('/', authenticateToken, (req, res) => {
 
     const result = ImageRepository.findList({
       categoryId,
-      isFavorite,
+      userId: req.user.id,
       keyword,
       uploadedBy,
       page,
@@ -546,11 +545,6 @@ router.get('/', authenticateToken, (req, res) => {
       sortBy,
       sortOrder
     });
-
-    // 为每张图片添加标签信息
-    for (const image of result.list) {
-      enrichImageWithTags(image);
-    }
 
     res.json({
       success: true,
@@ -578,6 +572,9 @@ router.get('/:id', authenticateToken, (req, res) => {
         message: '图片不存在'
       });
     }
+
+    // 检查当前用户是否收藏
+    image.is_favorite = FavoriteRepository.isFavorited(req.user.id, parseInt(id)) ? 1 : 0;
 
     enrichImageWithTags(image);
 
@@ -794,15 +791,15 @@ router.put('/:id/favorite', authenticateToken, async (req, res) => {
       });
     }
 
-    const newStatus = ImageRepository.toggleFavorite(id);
+    const isFavorited = FavoriteRepository.toggle(req.user.id, parseInt(id));
 
-    LogRepository.create(req.user.id, newStatus ? 'favorite_image' : 'unfavorite_image', 'image', id,
-      `${newStatus ? '收藏' : '取消收藏'}图片: ${image.original_name}`, req.ip);
+    LogRepository.create(req.user.id, isFavorited ? 'favorite_image' : 'unfavorite_image', 'image', id,
+      `${isFavorited ? '收藏' : '取消收藏'}图片: ${image.original_name}`, req.ip);
 
     res.json({
       success: true,
-      message: newStatus ? '已收藏' : '已取消收藏',
-      data: { is_favorite: newStatus }
+      message: isFavorited ? '已收藏' : '已取消收藏',
+      data: { is_favorite: isFavorited }
     });
   } catch (error) {
     console.error('收藏操作错误:', error);

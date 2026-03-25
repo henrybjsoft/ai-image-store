@@ -202,6 +202,19 @@ async function initDatabase() {
     )
   `);
 
+  // 创建收藏表（用户-图片收藏关系）
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS favorites (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      image_id INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, image_id),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
+    )
+  `);
+
   // 创建向量表（包含所有字段）
   database.exec(`
     CREATE TABLE IF NOT EXISTS vectors (

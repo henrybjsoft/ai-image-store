@@ -290,8 +290,9 @@
 ### 3.8 收藏与标签模块
 
 #### 3.8.1 收藏功能
-- 收藏/取消收藏图片
-- 收藏列表查看
+- 收藏/取消收藏图片（每个用户独立收藏）
+- 收藏列表查看（仅显示当前用户收藏的图片）
+- 图片彻底删除时自动删除相关收藏记录
 
 #### 3.8.2 标签功能
 - 查看所有标签
@@ -359,7 +360,6 @@ CREATE TABLE images (
   keywords TEXT,
   category_id INTEGER,
   uploaded_by INTEGER NOT NULL,
-  is_favorite BOOLEAN DEFAULT 0,
   is_deleted BOOLEAN DEFAULT 0,
   deleted_at DATETIME,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -368,6 +368,8 @@ CREATE TABLE images (
   FOREIGN KEY (uploaded_by) REFERENCES users(id)
 );
 ```
+
+**注意**：`is_favorite` 字段已移除，收藏状态改为通过 `favorites` 关联表查询，实现用户级别的收藏功能。
 
 #### 4.1.4 标签表 (tags)
 ```sql
@@ -405,6 +407,24 @@ CREATE TABLE logs (
 );
 ```
 
+#### 4.1.7 收藏表 (favorites)
+```sql
+CREATE TABLE favorites (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  image_id INTEGER NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, image_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
+);
+```
+
+**说明**：收藏功能采用用户-图片关联表设计，每个用户的收藏独立存储，支持以下特性：
+- 同一图片可被多个用户分别收藏
+- 用户删除时自动删除其收藏记录（CASCADE DELETE）
+- 图片彻底删除时自动删除相关收藏记录（CASCADE DELETE）
+
 ### 4.2 向量存储设计
 
 - 使用 SQLite 数据库存储图片描述的向量表示
@@ -437,12 +457,13 @@ CREATE TABLE vectors (
 | 模块 | 职责 |
 |------|------|
 | UserRepository | 用户增删改查、密码管理 |
-| ImageRepository | 图片增删改查、收藏、分类、标签关联 |
+| ImageRepository | 图片增删改查、分类、标签关联 |
 | CategoryRepository | 分类管理 |
 | TagRepository | 标签管理 |
 | LogRepository | 操作日志记录与查询 |
 | SearchRepository | 搜索功能 |
 | VectorRepository | 向量数据存储与检索 |
+| FavoriteRepository | 用户收藏管理（用户级别收藏状态） |
 
 #### 4.3.3 使用方式
 
@@ -561,13 +582,20 @@ ImageRepository.update(id, updateData);
 | DELETE | /api/trash/:id | 彻底删除 |
 | DELETE | /api/trash | 清空回收站 |
 
-### 5.8 日志 API
+### 5.8 收藏 API
+
+| 方法 | 路径 | 描述 |
+|------|------|------|
+| GET | /api/favorites | 获取当前用户收藏列表 |
+| GET | /api/favorites/count | 获取当前用户收藏数量 |
+
+### 5.9 日志 API
 
 | 方法 | 路径 | 描述 |
 |------|------|------|
 | GET | /api/logs | 获取操作日志列表 |
 
-### 5.9 系统 API
+### 5.10 系统 API
 
 | 方法 | 路径 | 描述 |
 |------|------|------|
@@ -749,3 +777,4 @@ ALLOWED_FORMATS=jpg,jpeg,png,webp,gif,svg
 | 2026-03-24 | v2.0.0 | 用户体系与权限管理重大升级：<br>- **用户信息扩展**：新增用户名称、说明、上传限额、可用状态、有效期（生效日期/失效日期）等字段<br>- **用户类型**：支持管理员和普通用户两种类型，管理员可编辑用户类型<br>- **有效期控制**：支持设置生效日期和失效日期，空值表示不限制，非有效期范围内禁止登录<br>- **状态控制**：用户可被禁用，禁用后无法登录<br>- **上传限额**：管理员可设置用户上传限额（默认100张），超出限额禁止上传<br>- **权限控制**：普通用户不能访问用户管理和操作日志；分类/标签仅可查看；只能删除自己上传的图片；不能使用重新识别功能<br>- **admin保护**：admin用户不可删除，不可修改状态/有效期/类型，仅允许修改名称和说明 |
 | 2026-03-24 | v2.1.0 | 上传与权限控制优化：<br>- **上传数量调整**：单次上传数量限制从20张调整为100张<br>- **配额显示优化**：管理员显示已上传张数，普通用户显示配额使用情况（已传/限额/剩余）<br>- **配额前端校验**：选择文件时前端实时校验剩余配额，超出部分自动标记为无效<br>- **删除权限统一**：图片库、语义搜索、收藏页面统一删除逻辑，管理员可删除所有图片，普通用户仅可删除自己上传的图片<br>- **重新识别权限**：重新识别功能统一为仅管理员可用<br>- **语义搜索卡片**：搜索结果卡片增加收藏、下载、删除操作按钮，与图片库卡片样式一致 |
 | 2026-03-25 | v2.2.0 | 系统功能完善与部署优化：<br>- **系统信息页面**：新增管理员专属页面，显示配置变量（API Key中间打码）、系统统计、用户排名<br>- **发布脚本**：新增 `npm run release` 命令，一键打包生产环境所需文件到 `release/` 目录<br>- **HOST配置**：新增 HOST 环境变量，支持配置监听地址（默认 0.0.0.0 监听所有网卡）<br>- **图片选择优化**：网格视图下复选框移至卡片底部文字区域，点击整个文字区域即可选中<br>- **图片详情布局**：右侧信息栏可滚动，下载和重新识别按钮固定在底部<br>- **回收站错误处理**：清空回收站时文件被占用不会中断流程，跳过失败文件继续删除<br>- **登录界面修复**：修复密码输入框图标悬停消失问题，改用组件 prefix 插槽 |
+| 2026-03-25 | v2.3.0 | 收藏功能重构（用户级别收藏）：<br>- **收藏表新增**：新增 `favorites` 表，存储用户-图片收藏关系，支持多用户独立收藏<br>- **收藏逻辑重构**：收藏状态从图片全局属性改为用户级别，每个用户有独立的收藏列表<br>- **API新增**：新增 `/api/favorites` 接口，获取当前用户收藏列表和数量<br>- **级联删除**：图片彻底删除时自动删除相关收藏记录，用户删除时自动删除其收藏记录<br>- **FavoriteRepository**：新增收藏数据访问层，封装收藏的增删查操作 |

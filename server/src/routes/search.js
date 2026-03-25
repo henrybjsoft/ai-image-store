@@ -1,15 +1,19 @@
 const express = require('express');
-const { SearchRepository, ImageRepository, TagRepository } = require('../repository');
+const { SearchRepository, ImageRepository, TagRepository, FavoriteRepository } = require('../repository');
 const { authenticateToken } = require('../middlewares/auth');
 const { getEmbedding } = require('../services/aiService');
 const { searchSimilar } = require('../services/vectorService');
 
 const router = express.Router();
 
-// 辅助函数：为图片添加标签信息
-function enrichImagesWithTags(images) {
+// 辅助函数：为图片添加标签信息和收藏状态
+function enrichImagesWithTags(images, userId = null) {
   for (const image of images) {
     image.tags = ImageRepository.getTags(image.id);
+    // 添加收藏状态
+    if (userId) {
+      image.is_favorite = FavoriteRepository.isFavorited(userId, image.id) ? 1 : 0;
+    }
 
     if (image.keywords) {
       try {
@@ -36,7 +40,7 @@ router.get('/keyword', authenticateToken, (req, res) => {
 
     const result = SearchRepository.searchByKeyword(q.trim(), { page, pageSize });
 
-    enrichImagesWithTags(result.list);
+    enrichImagesWithTags(result.list, req.user.id);
 
     res.json({
       success: true,
@@ -95,12 +99,14 @@ router.post('/semantic', authenticateToken, async (req, res) => {
     // 获取图片详情并按相似度排序
     let images = SearchRepository.findByIdsSorted(imageIds, similarityMap);
 
-    // 获取每张图片的标签和相似度
+    // 获取每张图片的标签、相似度和收藏状态
     for (const image of images) {
       image.tags = ImageRepository.getTags(image.id);
       // distance 转换回 similarity：similarity = 1 - distance
       const distance = similarityMap.get(image.id);
       image.similarity = distance !== undefined ? 1 - distance : 0;
+      // 添加收藏状态
+      image.is_favorite = FavoriteRepository.isFavorited(req.user.id, image.id) ? 1 : 0;
 
       if (image.keywords) {
         try {
