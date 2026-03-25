@@ -34,7 +34,9 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173)",
       "Bash(taskkill //F //PID 31604)",
       "Bash(cmd //c \"taskkill /F /PID 41792\")",
-      "Bash(taskkill //F //PID 50836)"
+      "Bash(taskkill //F //PID 50836)",
+      "Bash(taskkill /F /FI \"WINDOWTITLE eq *node*\")",
+      "Bash(pkill -f \"node.*app.js\")"
     ],
     "additionalDirectories": [
       "d:\\VSCODE\\图片素材公式系统\\client\\src\\views"
