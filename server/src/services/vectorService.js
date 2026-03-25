@@ -1,5 +1,4 @@
-const { VectorRepository, ImageRepository } = require('../repository');
-const { getEmbedding } = require('./aiService');
+const { VectorRepository } = require('../repository');
 
 // 添加图片向量
 async function addImageVector(imageId, embedding, userId = null) {
@@ -55,11 +54,6 @@ function cosineSimilarity(a, b) {
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
-// 根据图片 ID 获取向量
-function getVectorByImageId(imageId) {
-  return VectorRepository.get(imageId);
-}
-
 // 构建用于向量化的文本（描述+识别文字）
 function buildEmbeddingText(description, extractedText) {
   let text = description || '';
@@ -69,34 +63,9 @@ function buildEmbeddingText(description, extractedText) {
   return text;
 }
 
-// 重建索引（从数据库恢复）
-async function rebuildIndex() {
-  const images = ImageRepository.findAllDescriptions();
-
-  // 清空现有向量
-  VectorRepository.clear();
-
-  let count = 0;
-  for (const image of images) {
-    if (image.description) {
-      try {
-        const embedding = await getEmbedding(buildEmbeddingText(image.description, image.extracted_text));
-        VectorRepository.upsert(image.id, embedding, image.uploaded_by);
-        count++;
-      } catch (error) {
-        console.error(`重建索引失败 - 图片 ${image.id}:`, error);
-      }
-    }
-  }
-
-  console.log(`重建索引完成，共 ${count} 张图片`);
-}
-
 module.exports = {
   addImageVector,
   removeImageVector,
   searchSimilar,
-  getVectorByImageId,
-  rebuildIndex,
   buildEmbeddingText
 };
