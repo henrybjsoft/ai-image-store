@@ -32,7 +32,7 @@
           <div class="log-detail">{{ log.details }}</div>
         </div>
         <div class="log-meta">
-          <div class="log-time">{{ formatDate(log.created_at) }}</div>
+          <div class="log-time">{{ formatDate(log.created_at, 'MM-DD HH:mm:ss') }}</div>
           <div class="log-ip">{{ log.ip_address }}</div>
         </div>
       </div>
@@ -53,9 +53,9 @@
 
 <script setup>
 import { ref, reactive, onMounted, watch } from 'vue'
-import dayjs from 'dayjs'
 import { LoginOutlined, LogoutOutlined, UploadOutlined, DeleteOutlined, FolderAddOutlined, UserAddOutlined } from '@ant-design/icons-vue'
 import { logApi } from '@/api/log'
+import { formatDate } from '@/utils/date'
 
 const loading = ref(false)
 const logs = ref([])
@@ -108,10 +108,6 @@ async function loadLogs() {
   } finally {
     loading.value = false
   }
-}
-
-function formatDate(date) {
-  return dayjs(date).format('MM-DD HH:mm:ss')
 }
 
 function getActionText(action) {

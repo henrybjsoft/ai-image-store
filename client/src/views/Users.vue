@@ -37,10 +37,10 @@
           <template v-else-if="column.key === 'validity'">
             <div class="validity-cell">
               <div v-if="record.valid_from || record.valid_until">
-                <span v-if="record.valid_from">{{ record.valid_from }}</span>
+                <span v-if="record.valid_from">{{ formatDate(record.valid_from, 'YYYY-MM-DD') }}</span>
                 <span v-else>不限</span>
                 ~
-                <span v-if="record.valid_until">{{ record.valid_until }}</span>
+                <span v-if="record.valid_until">{{ formatDate(record.valid_until, 'YYYY-MM-DD') }}</span>
                 <span v-else>不限</span>
               </div>
               <span v-else class="text-gray">不限制</span>
@@ -163,7 +163,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { userApi } from '@/api/user'
-import dayjs from 'dayjs'
+import { formatDate, getLocalDayjs } from '@/utils/date'
 
 const loading = ref(false)
 const users = ref([])
@@ -237,8 +237,8 @@ function showEditModal(user) {
     role: user.role || 'user',
     status: user.status !== undefined ? user.status : 1,
     quota: user.quota !== undefined ? user.quota : 100,
-    validFrom: user.valid_from ? dayjs(user.valid_from) : null,
-    validUntil: user.valid_until ? dayjs(user.valid_until) : null
+    validFrom: user.valid_from ? getLocalDayjs(user.valid_from) : null,
+    validUntil: user.valid_until ? getLocalDayjs(user.valid_until) : null
   })
   modalVisible.value = true
 }

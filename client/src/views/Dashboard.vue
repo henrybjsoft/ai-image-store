@@ -45,7 +45,7 @@
             </div>
             <div class="image-info">
               <div class="image-name">{{ image.original_name }}</div>
-              <div class="image-date">{{ formatDate(image.created_at) }}</div>
+              <div class="image-date">{{ formatDate(image.created_at, 'MM-DD HH:mm') }}</div>
             </div>
           </div>
         </div>
@@ -83,7 +83,6 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import dayjs from 'dayjs'
 import { statIcons, actionIcons } from '@/assets/icons'
 import { RightOutlined, EyeOutlined } from '@ant-design/icons-vue'
 import { imageApi } from '@/api/image'
@@ -91,6 +90,7 @@ import { categoryApi } from '@/api/category'
 import { tagApi } from '@/api/tag'
 import ImageDetail from '@/components/ImageDetail.vue'
 import { useUserStore } from '@/stores/user'
+import { formatDate } from '@/utils/date'
 
 const userStore = useUserStore()
 
@@ -210,10 +210,6 @@ function getImageUrl(image, large = false) {
     return `/uploads/${image.thumbnail_path}`
   }
   return `/uploads/${image.file_path}`
-}
-
-function formatDate(date) {
-  return dayjs(date).format('MM-DD HH:mm')
 }
 
 function showPreview(image) {

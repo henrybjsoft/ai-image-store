@@ -110,7 +110,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
-import dayjs from 'dayjs'
 import {
   HeartOutlined,
   HeartFilled,
@@ -119,6 +118,7 @@ import {
   SyncOutlined
 } from '@ant-design/icons-vue'
 import { imageApi } from '@/api/image'
+import { formatDate } from '@/utils/date'
 
 const props = defineProps({
   visible: {
@@ -195,10 +195,6 @@ function formatSize(bytes) {
     i++
   }
   return size.toFixed(i > 0 ? 1 : 0) + ' ' + units[i]
-}
-
-function formatDate(date) {
-  return date ? dayjs(date).format('YYYY-MM-DD HH:mm') : '-'
 }
 
 async function handleFavorite() {

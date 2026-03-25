@@ -41,9 +41,9 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { message, Modal } from 'ant-design-vue'
-import dayjs from 'dayjs'
 import { DeleteOutlined, UndoOutlined } from '@ant-design/icons-vue'
 import { trashApi } from '@/api/trash'
+import { formatDate } from '@/utils/date'
 
 const loading = ref(false)
 const images = ref([])
@@ -77,10 +77,6 @@ function getImageUrl(image) {
     return `/uploads/${image.thumbnail_path}`
   }
   return `/uploads/${image.file_path}`
-}
-
-function formatDate(date) {
-  return dayjs(date).format('YYYY-MM-DD HH:mm')
 }
 
 async function handleRestore(ids) {

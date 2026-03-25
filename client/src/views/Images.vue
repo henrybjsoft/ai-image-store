@@ -209,7 +209,6 @@
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
-import dayjs from 'dayjs'
 import {
   AppstoreOutlined,
   UnorderedListOutlined,
@@ -228,6 +227,7 @@ import { tagApi } from '@/api/tag'
 import { searchApi } from '@/api/search'
 import ImageDetail from '@/components/ImageDetail.vue'
 import { useUserStore } from '@/stores/user'
+import { formatDate } from '@/utils/date'
 
 const route = useRoute()
 const userStore = useUserStore()
@@ -362,10 +362,6 @@ function formatSize(bytes) {
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
-}
-
-function formatDate(date) {
-  return dayjs(date).format('YYYY-MM-DD HH:mm')
 }
 
 // 判断是否可以删除：管理员可删除任何图片，普通用户只能删除自己的图片
