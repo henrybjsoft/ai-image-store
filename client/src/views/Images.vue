@@ -75,6 +75,7 @@
         <a-button
           type="primary"
           :disabled="selectedIds.length === 0"
+          :loading="batchDownloadLoading"
           class="action-btn"
           @click="handleBatchDownload"
         >
@@ -232,6 +233,7 @@ const route = useRoute()
 const userStore = useUserStore()
 
 const loading = ref(false)
+const batchDownloadLoading = ref(false)
 const images = ref([])
 const categories = ref([])
 const tags = ref([])
@@ -422,6 +424,7 @@ function handleReanalyzeRefresh() {
 }
 
 async function handleBatchDownload() {
+  batchDownloadLoading.value = true
   try {
     const res = await imageApi.batchDownload(selectedIds.value)
     const blob = new Blob([res], { type: 'application/zip' })
@@ -431,8 +434,11 @@ async function handleBatchDownload() {
     link.download = `images_${Date.now()}.zip`
     link.click()
     window.URL.revokeObjectURL(url)
+    message.success('下载完成')
   } catch (error) {
     message.error('下载失败')
+  } finally {
+    batchDownloadLoading.value = false
   }
 }
 
