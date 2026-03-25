@@ -657,6 +657,14 @@ image-asset-management/
 │   ├── src/
 │   │   ├── routes/            # 路由处理
 │   │   ├── services/          # 业务逻辑
+│   │   │   ├── ai/            # AI 提供商模块
+│   │   │   │   ├── index.js   # 统一入口
+│   │   │   │   ├── base.js    # 抽象基类
+│   │   │   │   ├── dashscope.js # DashScope 实现
+│   │   │   │   └── ollama.js  # Ollama 实现
+│   │   │   ├── aiService.js   # AI 服务封装
+│   │   │   ├── vectorService.js # 向量服务
+│   │   │   └── logService.js  # 日志服务
 │   │   ├── repository/        # 数据访问层（Repository 模式）
 │   │   ├── models/            # 数据模型
 │   │   ├── middlewares/       # 中间件
@@ -698,12 +706,18 @@ NODE_ENV=development
 JWT_SECRET=your-super-secret-jwt-key-change-in-production
 JWT_EXPIRES_IN=7d
 
-# DashScope API 配置
-DASHSCOPE_API_KEY=your-dashscope-api-key
+# AI 提供商配置
+AI_PROVIDER=dashscope          # 可选值: dashscope, ollama
 
-# AI 模型配置
-AI_VISION_MODEL=qwen-vl-plus
-AI_EMBEDDING_MODEL=text-embedding-v3
+# DashScope API 配置（AI_PROVIDER=dashscope 时使用）
+DASHSCOPE_API_KEY=your-dashscope-api-key
+DASHSCOPE_VISION_MODEL=qwen-vl-plus
+DASHSCOPE_EMBEDDING_MODEL=text-embedding-v3
+
+# Ollama 配置（AI_PROVIDER=ollama 时使用）
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_VISION_MODEL=llava      # 推荐: llava, bakllava, moondream
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text  # 推荐: nomic-embed-text, mxbai-embed-large
 
 # 文件上传配置
 MAX_FILE_SIZE=10485760        # 10MB
@@ -719,7 +733,56 @@ THUMBNAIL_QUALITY=80
 ALLOWED_FORMATS=jpg,jpeg,png,webp,gif,svg
 ```
 
-### 8.2 默认账号
+### 8.2 AI 提供商说明
+
+系统支持两种 AI 提供商：
+
+#### DashScope（阿里云灵积）
+
+| 配置项 | 说明 |
+|--------|------|
+| DASHSCOPE_API_KEY | DashScope API Key |
+| DASHSCOPE_VISION_MODEL | 视觉模型，默认 qwen-vl-plus |
+| DASHSCOPE_EMBEDDING_MODEL | 嵌入模型，默认 text-embedding-v3 |
+
+**特点**：
+- 需要 API Key，产生费用
+- 向量维度：1024
+- 网络要求：能访问阿里云 API
+
+#### Ollama（本地部署）
+
+| 配置项 | 说明 |
+|--------|------|
+| OLLAMA_BASE_URL | Ollama 服务地址，默认 http://localhost:11434 |
+| OLLAMA_VISION_MODEL | 视觉模型，推荐 llava |
+| OLLAMA_EMBEDDING_MODEL | 嵌入模型，推荐 nomic-embed-text |
+
+**特点**：
+- 完全本地运行，无需网络
+- 免费使用，无费用
+- 需要先安装 Ollama 并下载模型
+
+**推荐模型**：
+
+| 用途 | 模型名称 | 向量维度 | 说明 |
+|------|----------|----------|------|
+| 视觉 | llava | - | 主流视觉模型，效果好 |
+| 视觉 | bakllava | - | 基于 LLaVA 优化 |
+| 视觉 | moondream | - | 轻量级，速度快 |
+| 嵌入 | nomic-embed-text | 768 | 推荐使用，效果好 |
+| 嵌入 | mxbai-embed-large | 1024 | 高维度向量 |
+
+**安装 Ollama 模型**：
+```bash
+# 安装视觉模型
+ollama pull llava
+
+# 安装嵌入模型
+ollama pull nomic-embed-text
+```
+
+### 8.3 默认账号
 
 - 用户名: `admin`
 - 密码: `admin123`
@@ -778,3 +841,4 @@ ALLOWED_FORMATS=jpg,jpeg,png,webp,gif,svg
 | 2026-03-24 | v2.1.0 | 上传与权限控制优化：<br>- **上传数量调整**：单次上传数量限制从20张调整为100张<br>- **配额显示优化**：管理员显示已上传张数，普通用户显示配额使用情况（已传/限额/剩余）<br>- **配额前端校验**：选择文件时前端实时校验剩余配额，超出部分自动标记为无效<br>- **删除权限统一**：图片库、语义搜索、收藏页面统一删除逻辑，管理员可删除所有图片，普通用户仅可删除自己上传的图片<br>- **重新识别权限**：重新识别功能统一为仅管理员可用<br>- **语义搜索卡片**：搜索结果卡片增加收藏、下载、删除操作按钮，与图片库卡片样式一致 |
 | 2026-03-25 | v2.2.0 | 系统功能完善与部署优化：<br>- **系统信息页面**：新增管理员专属页面，显示配置变量（API Key中间打码）、系统统计、用户排名<br>- **发布脚本**：新增 `npm run release` 命令，一键打包生产环境所需文件到 `release/` 目录<br>- **HOST配置**：新增 HOST 环境变量，支持配置监听地址（默认 0.0.0.0 监听所有网卡）<br>- **图片选择优化**：网格视图下复选框移至卡片底部文字区域，点击整个文字区域即可选中<br>- **图片详情布局**：右侧信息栏可滚动，下载和重新识别按钮固定在底部<br>- **回收站错误处理**：清空回收站时文件被占用不会中断流程，跳过失败文件继续删除<br>- **登录界面修复**：修复密码输入框图标悬停消失问题，改用组件 prefix 插槽 |
 | 2026-03-25 | v2.3.0 | 收藏功能重构（用户级别收藏）：<br>- **收藏表新增**：新增 `favorites` 表，存储用户-图片收藏关系，支持多用户独立收藏<br>- **收藏逻辑重构**：收藏状态从图片全局属性改为用户级别，每个用户有独立的收藏列表<br>- **API新增**：新增 `/api/favorites` 接口，获取当前用户收藏列表和数量<br>- **级联删除**：图片彻底删除时自动删除相关收藏记录，用户删除时自动删除其收藏记录<br>- **FavoriteRepository**：新增收藏数据访问层，封装收藏的增删查操作 |
+| 2026-03-25 | v2.4.0 | AI 服务架构重构（多提供商支持）：<br>- **AI Provider 抽象层**：引入 Provider 模式，支持多种 AI 提供商<br>- **Ollama 支持**：新增 Ollama 本地部署支持，可完全离线运行，无 API 费用<br>- **配置切换**：通过 `AI_PROVIDER` 环境变量切换 DashScope 或 Ollama<br>- **Ollama 配置项**：支持配置服务地址、视觉模型（推荐 llava）、嵌入模型（推荐 nomic-embed-text）<br>- **向量维度兼容**：不同嵌入模型支持不同向量维度（DashScope 1024，nomic-embed-text 768）<br>- **代码结构优化**：services/ai/ 目录下按提供商组织代码 |

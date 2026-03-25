@@ -1,21 +1,15 @@
 const express = require('express');
 const { authenticateToken, requireAdmin } = require('../middlewares/auth');
 const { StatsRepository } = require('../repository');
+const { getAIConfig } = require('../services/aiService');
 
 const router = express.Router();
-
-// 掩码敏感值（显示前4位和后4位，中间用*代替）
-function maskSensitiveValue(value) {
-  if (!value || typeof value !== 'string') return value;
-  if (value.length <= 8) {
-    return value.substring(0, 2) + '****' + value.substring(value.length - 2);
-  }
-  return value.substring(0, 4) + '****' + value.substring(value.length - 4);
-}
 
 // 获取系统配置信息
 router.get('/config', authenticateToken, requireAdmin, (req, res) => {
   try {
+    const aiConfig = getAIConfig();
+
     const config = {
       server: {
         port: process.env.PORT || 3000,
@@ -34,11 +28,7 @@ router.get('/config', authenticateToken, requireAdmin, (req, res) => {
         size: parseInt(process.env.THUMBNAIL_SIZE) || 400,
         quality: parseInt(process.env.THUMBNAIL_QUALITY) || 80
       },
-      ai: {
-        visionModel: process.env.AI_VISION_MODEL || 'qwen-vl-plus',
-        embeddingModel: process.env.AI_EMBEDDING_MODEL || 'text-embedding-v3',
-        apiKey: maskSensitiveValue(process.env.DASHSCOPE_API_KEY)
-      }
+      ai: aiConfig
     };
 
     res.json({

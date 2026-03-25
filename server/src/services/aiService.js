@@ -1,84 +1,14 @@
-const fs = require('fs');
-const path = require('path');
-const https = require('https');
+/**
+ * AI 服务模块
+ * 提供图片分析和文本嵌入功能
+ * 支持多种 AI 提供商（DashScope、Ollama）
+ */
+const { getProvider } = require('./ai');
 const { getDatabase } = require('../models/database');
 
-const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY;
-const AI_VISION_MODEL = process.env.AI_VISION_MODEL || 'qwen-vl-plus';
-const AI_EMBEDDING_MODEL = process.env.AI_EMBEDDING_MODEL || 'text-embedding-v3';
-
-// 获取图片的 Base64 编码
-function getImageBase64(imagePath) {
-  const imageBuffer = fs.readFileSync(imagePath);
-  const ext = path.extname(imagePath).toLowerCase().slice(1);
-  const mimeType = ext === 'svg' ? 'image/svg+xml' : `image/${ext}`;
-  return `data:${mimeType};base64,${imageBuffer.toString('base64')}`;
-}
-
-// 通用的 HTTPS POST 请求
-function httpsPost(hostname, path, body) {
-  return new Promise((resolve, reject) => {
-    const requestBody = JSON.stringify(body);
-    const options = {
-      hostname,
-      port: 443,
-      path,
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${DASHSCOPE_API_KEY}`,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(requestBody)
-      }
-    };
-
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch (e) {
-          reject(new Error(`解析响应失败: ${data}`));
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.write(requestBody);
-    req.end();
-  });
-}
-
-// 调用通义千问视觉模型
-async function callQwenVL(imageBase64, prompt) {
-  const body = {
-    model: AI_VISION_MODEL,
-    input: {
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { image: imageBase64 },
-            { text: prompt }
-          ]
-        }
-      ]
-    }
-  };
-  return httpsPost('dashscope.aliyuncs.com', '/api/v1/services/aigc/multimodal-generation/generation', body);
-}
-
-// 调用 Embedding API
-async function callEmbeddingAPI(text) {
-  const body = {
-    model: AI_EMBEDDING_MODEL,
-    input: { texts: [text] },
-    parameters: { text_type: 'document' }
-  };
-  return httpsPost('dashscope.aliyuncs.com', '/api/v1/services/embeddings/text-embedding/text-embedding', body);
-}
-
-// 根据关键词匹配分类
+/**
+ * 根据关键词匹配分类
+ */
 function matchCategory(keywords, description) {
   const db = getDatabase();
   const categories = db.prepare('SELECT * FROM categories').all();
@@ -114,147 +44,76 @@ function matchCategory(keywords, description) {
   return otherCategory ? otherCategory.id : null;
 }
 
-// 处理图片并返回 AI 分析结果
+/**
+ * 处理图片并返回 AI 分析结果
+ * @param {string} imagePath - 图片文件路径
+ * @returns {Promise<{description: string, keywords: string[], categoryId: number|null, extractedText: string}>}
+ */
 async function processImageWithAI(imagePath) {
-  const defaultResult = {
-    description: '图片素材',
-    keywords: ['图片', '素材'],
-    categoryId: null,
-    extractedText: ''
-  };
+  const provider = getProvider();
 
   try {
-    if (!DASHSCOPE_API_KEY || DASHSCOPE_API_KEY === 'your-dashscope-api-key') {
-      return defaultResult;
-    }
+    const result = await provider.analyzeImage(imagePath);
 
-    const imageBase64 = getImageBase64(imagePath);
-    const prompt = `请详细分析这张图片，提供以下信息：
+    // 匹配分类
+    const categoryId = matchCategory(result.keywords, result.description);
 
-1. 详细描述：请用2-4句话详细描述图片的内容，包括：
-   - 图片的主体内容是什么
-   - 场景、环境、背景特点
-   - 色彩、构图、风格特点
-   - 图片传达的情感或氛围
-
-2. 关键词：请列出8-15个关键词，包括：
-   - 主体对象（人物、物品、动物等）
-   - 场景环境（室内、室外、自然景观等）
-   - 风格特点（现代、复古、简约等）
-   - 色彩特点（暖色调、冷色调、鲜艳等）
-   - 情感氛围（温馨、活力、宁静等）
-
-3. 图片文字：请识别并提取图片中所有的文字内容，包括：
-   - 标题、标语、品牌名称
-   - 说明文字、注释
-   - 水印、logo中的文字
-   如果图片中没有文字，请返回空字符串
-
-请严格按照以下JSON格式返回：
-{"description": "详细描述内容", "keywords": ["关键词1", "关键词2", "关键词3"], "text": "图片中的文字内容，没有则为空字符串"}`;
-
-    console.log('调用 AI 识别图片...');
-    const response = await callQwenVL(imageBase64, prompt);
-    console.log('AI 响应:', JSON.stringify(response).substring(0, 200));
-
-    if (response.code || response.message) {
-      console.error('DashScope API 错误:', response.code, response.message);
-      return defaultResult;
-    }
-
-    // 解析响应 - content 可能是数组 [{text: "..."}] 或字符串
-    let content = '';
-    if (response.output?.choices?.[0]?.message?.content) {
-      const rawContent = response.output.choices[0].message.content;
-      if (Array.isArray(rawContent)) {
-        // 数组格式：[{text: "描述：..."}]
-        content = rawContent.map(item => item.text || '').join('');
-      } else if (typeof rawContent === 'string') {
-        content = rawContent;
-      }
-    } else if (response.output?.results?.[0]?.output?.text) {
-      content = response.output.results[0].output.text;
-    } else if (typeof response.output === 'string') {
-      content = response.output;
-    }
-
-    console.log('AI 返回内容:', content);
-
-    // 解析描述、关键词和文字
-    let description = '';
-    let keywords = [];
-    let extractedText = '';
-
-    // 尝试解析JSON格式
-    const jsonMatch = content.match(/\{[\s\S]*"description"[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        const jsonResult = JSON.parse(jsonMatch[0]);
-        description = jsonResult.description || '';
-        keywords = jsonResult.keywords || [];
-        extractedText = jsonResult.text || '';
-      } catch (e) {
-        console.log('JSON解析失败，尝试其他格式');
-      }
-    }
-
-    // 如果JSON解析失败，尝试原有格式
-    if (!description) {
-      const descMatch = content.match(/描述[：:]\s*(.+?)(?=关键词|$)/s);
-      if (descMatch) {
-        description = descMatch[1].trim();
-      }
-    }
-
-    if (keywords.length === 0) {
-      const keywordsMatch = content.match(/关键词[：:]\s*(.+?)(?=$)/s);
-      if (keywordsMatch) {
-        keywords = keywordsMatch[1].split(/[,，、\s]+/).filter(k => k.trim()).map(k => k.trim());
-      }
-    }
-
-    // 如果解析失败，尝试直接使用内容
-    if (!description && content) {
-      description = content.substring(0, 200).trim();
-    }
-
-    if (keywords.length === 0) {
-      keywords = ['图片', '素材'];
-    }
-
-    const categoryId = matchCategory(keywords, description);
-
-    return { description, keywords, categoryId, extractedText };
+    return {
+      description: result.description,
+      keywords: result.keywords,
+      categoryId,
+      extractedText: result.extractedText
+    };
   } catch (error) {
     console.error('AI 处理图片失败:', error.message);
-    return defaultResult;
+    return {
+      description: '图片素材',
+      keywords: ['图片', '素材'],
+      categoryId: null,
+      extractedText: ''
+    };
   }
 }
 
-// 获取文本的向量表示
+/**
+ * 获取文本的向量表示
+ * @param {string} text - 需要向量化的文本
+ * @returns {Promise<number[]>} 向量数组
+ */
 async function getEmbedding(text) {
-  const defaultVector = () => new Array(1024).fill(0).map(() => Math.random() * 2 - 1);
+  const provider = getProvider();
 
   try {
-    if (!DASHSCOPE_API_KEY || DASHSCOPE_API_KEY === 'your-dashscope-api-key') {
-      return defaultVector();
-    }
-
-    const response = await callEmbeddingAPI(text);
-
-    if (response.code || response.message) {
-      console.error('Embedding API 错误:', response.code, response.message);
-      return defaultVector();
-    }
-
-    return response.output?.embeddings?.[0]?.embedding || defaultVector();
+    return await provider.getEmbedding(text);
   } catch (error) {
     console.error('获取 Embedding 失败:', error.message);
-    return defaultVector();
+    // 返回随机向量作为后备
+    return new Array(1024).fill(0).map(() => Math.random() * 2 - 1);
   }
+}
+
+/**
+ * 获取当前 AI 配置信息
+ * @returns {object}
+ */
+function getAIConfig() {
+  const provider = getProvider();
+  return provider.getConfig();
+}
+
+/**
+ * 检查 AI 服务是否可用
+ * @returns {Promise<boolean>}
+ */
+async function isAIAvailable() {
+  const provider = getProvider();
+  return provider.isAvailable();
 }
 
 module.exports = {
   processImageWithAI,
-  getEmbedding
+  getEmbedding,
+  getAIConfig,
+  isAIAvailable,
+  matchCategory
 };
