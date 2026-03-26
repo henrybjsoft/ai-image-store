@@ -88,6 +88,7 @@ import { RightOutlined, EyeOutlined } from '@ant-design/icons-vue'
 import { imageApi } from '@/api/image'
 import { categoryApi } from '@/api/category'
 import { tagApi } from '@/api/tag'
+import { favoriteApi } from '@/api/favorites'
 import ImageDetail from '@/components/ImageDetail.vue'
 import { useUserStore } from '@/stores/user'
 import { formatDate } from '@/utils/date'
@@ -196,8 +197,8 @@ async function loadData() {
     stats.value[2].value = tagsRes.data?.length || 0
 
     // 获取收藏数
-    const favRes = await imageApi.getList({ isFavorite: true, pageSize: 1 })
-    stats.value[3].value = favRes.data?.total || 0
+    const favRes = await favoriteApi.getCount()
+    stats.value[3].value = favRes.data?.count || 0
   } catch (error) {
     console.error('加载数据失败:', error)
   } finally {
