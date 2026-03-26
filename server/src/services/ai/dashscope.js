@@ -17,10 +17,19 @@ class DashScopeProvider extends AIProvider {
 
   /**
    * 获取图片的 Base64 编码
+   * @param {string|Buffer} imageInput - 文件路径或 Buffer
    */
-  _getImageBase64(imagePath) {
-    const imageBuffer = fs.readFileSync(imagePath);
-    const ext = path.extname(imagePath).toLowerCase().slice(1);
+  _getImageBase64(imageInput) {
+    let imageBuffer;
+    let ext = 'jpg';
+
+    if (Buffer.isBuffer(imageInput)) {
+      imageBuffer = imageInput;
+    } else {
+      imageBuffer = fs.readFileSync(imageInput);
+      ext = path.extname(imageInput).toLowerCase().slice(1);
+    }
+
     const mimeType = ext === 'svg' ? 'image/svg+xml' : `image/${ext}`;
     return `data:${mimeType};base64,${imageBuffer.toString('base64')}`;
   }

@@ -45,14 +45,14 @@ async function matchCategory(keywords, description) {
 
 /**
  * 处理图片并返回 AI 分析结果
- * @param {string} imagePath - 图片文件路径
+ * @param {string|Buffer} imageInput - 图片文件路径或 Buffer
  * @returns {Promise<{description: string, keywords: string[], categoryId: number|null, extractedText: string}>}
  */
-async function processImageWithAI(imagePath) {
+async function processImageWithAI(imageInput) {
   const provider = getProvider();
 
   try {
-    const result = await provider.analyzeImage(imagePath);
+    const result = await provider.analyzeImage(imageInput);
 
     // 匹配分类
     const categoryId = await matchCategory(result.keywords, result.description);

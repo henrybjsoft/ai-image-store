@@ -9,12 +9,22 @@ const { ImageRepository, TagRepository, CategoryRepository, LogRepository, UserR
 const { authenticateToken, requireAdmin } = require('../middlewares/auth');
 const { processImageWithAI, getEmbedding } = require('../services/aiService');
 const { addImageVector, removeImageVector, buildEmbeddingText } = require('../services/vectorService');
+const { getStorage, isLocalStorage } = require('../services/storage');
 
 const router = express.Router();
 
-// 配置文件上传
-const UPLOAD_DIR = path.join(__dirname, '../../uploads');
-const THUMBNAIL_DIR = path.join(UPLOAD_DIR, 'thumbnails');
+// 获取 MIME 类型
+function getMimeType(ext) {
+  const mimeTypes = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+    '.gif': 'image/gif',
+    '.svg': 'image/svg+xml'
+  };
+  return mimeTypes[ext.toLowerCase()] || 'application/octet-stream';
+}
 
 // 修复中文文件名乱码 - multer 使用 latin1 编码，需要转换为 utf8
 function decodeFilename(originalname) {
@@ -25,28 +35,8 @@ function decodeFilename(originalname) {
   }
 }
 
-// 确保上传目录存在
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
-if (!fs.existsSync(THUMBNAIL_DIR)) {
-  fs.mkdirSync(THUMBNAIL_DIR, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const yearMonth = new Date().toISOString().slice(0, 7);
-    const dir = path.join(UPLOAD_DIR, yearMonth);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `${uuidv4()}${ext}`);
-  }
-});
+// 内存存储用于上传
+const memoryStorage = multer.memoryStorage();
 
 const ALLOWED_FORMATS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'];
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024;
@@ -61,17 +51,6 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-const upload = multer({
-  storage,
-  fileFilter,
-  limits: {
-    fileSize: MAX_FILE_SIZE,
-    files: MAX_FILES
-  }
-});
-
-// 内存存储用于进度上传
-const memoryStorage = multer.memoryStorage();
 const uploadMemory = multer({
   storage: memoryStorage,
   fileFilter,
@@ -82,7 +61,7 @@ const uploadMemory = multer({
 });
 
 // 创建缩略图
-async function createThumbnail(filePath, filename) {
+async function createThumbnail(buffer, filename) {
   try {
     const ext = path.extname(filename).toLowerCase();
     if (ext === '.svg') {
@@ -90,18 +69,18 @@ async function createThumbnail(filePath, filename) {
     }
 
     const thumbnailFilename = `thumb_${path.basename(filename, ext)}.jpg`;
-    const thumbnailPath = path.join(THUMBNAIL_DIR, thumbnailFilename);
+    const thumbnailKey = `thumbnails/${thumbnailFilename}`;
 
     const thumbnailSize = parseInt(process.env.THUMBNAIL_SIZE) || 400;
     const thumbnailQuality = parseInt(process.env.THUMBNAIL_QUALITY) || 80;
 
-    await sharp(filePath)
+    const thumbnailBuffer = await sharp(buffer)
       .rotate() // 根据 EXIF 方向自动旋转
       .resize(thumbnailSize, thumbnailSize, { fit: 'inside' })
       .jpeg({ quality: thumbnailQuality })
-      .toFile(thumbnailPath);
+      .toBuffer();
 
-    return thumbnailPath;
+    return { key: thumbnailKey, buffer: thumbnailBuffer };
   } catch (error) {
     console.error('创建缩略图失败:', error);
     return null;
@@ -109,42 +88,36 @@ async function createThumbnail(filePath, filename) {
 }
 
 // 修正图片方向（根据 EXIF 信息旋转并去除方向标签）
-async function fixImageOrientation(filePath, ext) {
+async function fixImageOrientation(buffer, ext) {
   try {
     // 只处理 JPEG 和 PNG 图片
     if (!['.jpg', '.jpeg', '.png'].includes(ext.toLowerCase())) {
-      return;
+      return buffer;
     }
 
-    const image = sharp(filePath);
+    const image = sharp(buffer);
     const metadata = await image.metadata();
 
     // 如果有 EXIF 方向信息且不是 1（正常方向）
     if (metadata.orientation && metadata.orientation !== 1) {
       // 读取图片，旋转到正确方向，去除 EXIF 方向信息
-      await image
+      return await image
         .rotate()
-        .withMetadata({ orientation: 1 }) // 去除方向标签
-        .toFile(filePath + '.tmp');
-
-      // 替换原文件
-      fs.unlinkSync(filePath);
-      fs.renameSync(filePath + '.tmp', filePath);
+        .withMetadata({ orientation: 1 })
+        .toBuffer();
     }
+
+    return buffer;
   } catch (error) {
     console.error('修正图片方向失败:', error);
+    return buffer;
   }
 }
 
 // 获取图片尺寸
-async function getImageDimensions(filePath) {
+async function getImageDimensions(buffer) {
   try {
-    const ext = path.extname(filePath).toLowerCase();
-    if (ext === '.svg') {
-      return { width: null, height: null };
-    }
-
-    const metadata = await sharp(filePath).metadata();
+    const metadata = await sharp(buffer).metadata();
     return {
       width: metadata.width,
       height: metadata.height
@@ -210,7 +183,8 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
 
     const totalFiles = req.files.length;
     const results = [];
-    const CONCURRENCY = parseInt(process.env.UPLOAD_CONCURRENCY) || 5; // 从环境变量读取并发数，默认5
+    const CONCURRENCY = parseInt(process.env.UPLOAD_CONCURRENCY) || 5;
+    const storage = getStorage();
 
     // 发送初始状态
     sendProgress({ type: 'start', total: totalFiles });
@@ -245,7 +219,7 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
       const originalName = decodeFilename(file.originalname);
 
       try {
-        // 步骤1: 保存文件
+        // 步骤1: 准备文件
         sendProgress({
           type: 'progress',
           fileIndex,
@@ -255,19 +229,13 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
           progress: 0
         });
 
-        const yearMonth = new Date().toISOString().slice(0, 7);
-        const dir = path.join(UPLOAD_DIR, yearMonth);
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
-        }
-
         const ext = path.extname(originalName).toLowerCase();
         const filename = `${uuidv4()}${ext}`;
-        const filePath = path.join(dir, filename);
-        fs.writeFileSync(filePath, file.buffer);
+        const yearMonth = new Date().toISOString().slice(0, 7);
+        const fileKey = `${yearMonth}/${filename}`;
 
-        // 修正图片方向（根据 EXIF 信息旋转）
-        await fixImageOrientation(filePath, ext);
+        // 修正图片方向
+        let imageBuffer = await fixImageOrientation(file.buffer, ext);
 
         // 步骤2: 获取图片尺寸
         sendProgress({
@@ -279,7 +247,7 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
           progress: 20
         });
 
-        const dimensions = await getImageDimensions(filePath);
+        const dimensions = await getImageDimensions(imageBuffer);
 
         // 步骤3: 创建缩略图
         sendProgress({
@@ -291,21 +259,45 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
           progress: 30
         });
 
-        const thumbnailPath = await createThumbnail(filePath, filename);
+        const thumbnail = await createThumbnail(imageBuffer, filename);
 
-        // 步骤4: AI 识别
+        // 步骤4: 上传到存储
+        sendProgress({
+          type: 'progress',
+          fileIndex,
+          fileName: originalName,
+          step: 'uploading',
+          stepText: '上传到存储...',
+          progress: 40
+        });
+
+        // 上传原图
+        await storage.uploadBuffer(imageBuffer, fileKey, {
+          contentType: getMimeType(ext)
+        });
+
+        // 上传缩略图
+        let thumbnailKey = null;
+        if (thumbnail) {
+          await storage.uploadBuffer(thumbnail.buffer, thumbnail.key, {
+            contentType: 'image/jpeg'
+          });
+          thumbnailKey = thumbnail.key;
+        }
+
+        // 步骤5: AI 识别
         sendProgress({
           type: 'progress',
           fileIndex,
           fileName: originalName,
           step: 'ai',
           stepText: 'AI 识别中...',
-          progress: 50
+          progress: 60
         });
 
-        const aiResult = await processImageWithAI(filePath);
+        const aiResult = await processImageWithAI(imageBuffer);
 
-        // 步骤5: 保存到数据库
+        // 步骤6: 保存到数据库
         sendProgress({
           type: 'progress',
           fileIndex,
@@ -315,17 +307,14 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
           progress: 80
         });
 
-        const relativeFilePath = path.relative(UPLOAD_DIR, filePath).replace(/\\/g, '/');
-        const relativeThumbnailPath = thumbnailPath ? path.relative(UPLOAD_DIR, thumbnailPath).replace(/\\/g, '/') : null;
-
         // 如果用户手动指定了分类，则使用手动指定的分类，否则使用AI识别的分类
         const finalCategoryId = manualCategoryId || aiResult.categoryId;
 
         const imageId = await ImageRepository.create({
           filename,
           originalName,
-          filePath: relativeFilePath,
-          thumbnailPath: relativeThumbnailPath,
+          filePath: fileKey,
+          thumbnailPath: thumbnailKey,
           fileSize: file.size,
           fileFormat: ext.slice(1),
           width: dimensions.width,
@@ -344,7 +333,7 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
           }
         }
 
-        // 步骤6: 生成向量
+        // 步骤7: 生成向量
         sendProgress({
           type: 'progress',
           fileIndex,
@@ -425,7 +414,7 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
 });
 
 // 批量上传图片（保留原接口兼容）
-router.post('/upload', authenticateToken, upload.array('images', MAX_FILES), async (req, res) => {
+router.post('/upload', authenticateToken, uploadMemory.array('images', MAX_FILES), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({
@@ -438,36 +427,53 @@ router.post('/upload', authenticateToken, upload.array('images', MAX_FILES), asy
     const manualCategoryId = req.body.categoryId ? parseInt(req.body.categoryId) : null;
     const manualTagIds = req.body.tagIds ? JSON.parse(req.body.tagIds) : [];
 
+    const storage = getStorage();
     const results = [];
 
     for (const file of req.files) {
       try {
         // 修复中文文件名乱码
         const originalName = decodeFilename(file.originalname);
+        const ext = path.extname(originalName).toLowerCase();
+        const filename = `${uuidv4()}${ext}`;
+        const yearMonth = new Date().toISOString().slice(0, 7);
+        const fileKey = `${yearMonth}/${filename}`;
+
+        // 修正图片方向
+        let imageBuffer = await fixImageOrientation(file.buffer, ext);
 
         // 获取图片尺寸
-        const dimensions = await getImageDimensions(file.path);
+        const dimensions = await getImageDimensions(imageBuffer);
 
         // 创建缩略图
-        const thumbnailPath = await createThumbnail(file.path, file.filename);
+        const thumbnail = await createThumbnail(imageBuffer, filename);
 
-        // 调用 AI 识别图片
-        const aiResult = await processImageWithAI(file.path);
+        // 上传到存储
+        await storage.uploadBuffer(imageBuffer, fileKey, {
+          contentType: getMimeType(ext)
+        });
 
-        // 保存图片信息到数据库（使用相对路径）
-        const relativeFilePath = path.relative(UPLOAD_DIR, file.path).replace(/\\/g, '/');
-        const relativeThumbnailPath = thumbnailPath ? path.relative(UPLOAD_DIR, thumbnailPath).replace(/\\/g, '/') : null;
+        let thumbnailKey = null;
+        if (thumbnail) {
+          await storage.uploadBuffer(thumbnail.buffer, thumbnail.key, {
+            contentType: 'image/jpeg'
+          });
+          thumbnailKey = thumbnail.key;
+        }
 
-        // 如果用户手动指定了分类，则使用手动指定的分类，否则使用AI识别的分类
+        // AI 识别
+        const aiResult = await processImageWithAI(imageBuffer);
+
+        // 保存到数据库
         const finalCategoryId = manualCategoryId || aiResult.categoryId;
 
         const imageId = await ImageRepository.create({
-          filename: file.filename,
+          filename,
           originalName,
-          filePath: relativeFilePath,
-          thumbnailPath: relativeThumbnailPath,
+          filePath: fileKey,
+          thumbnailPath: thumbnailKey,
           fileSize: file.size,
-          fileFormat: path.extname(originalName).toLowerCase().slice(1),
+          fileFormat: ext.slice(1),
           width: dimensions.width,
           height: dimensions.height,
           description: aiResult.description,
@@ -477,20 +483,20 @@ router.post('/upload', authenticateToken, upload.array('images', MAX_FILES), asy
           extractedText: aiResult.extractedText
         });
 
-        // 如果用户手动指定了标签，则添加这些标签
+        // 添加标签
         if (manualTagIds && manualTagIds.length > 0) {
           for (const tagId of manualTagIds) {
             await ImageRepository.addTag(imageId, tagId);
           }
         }
 
-        // 获取描述的向量并存储
+        // 生成向量
         const embedding = await getEmbedding(buildEmbeddingText(aiResult.description, aiResult.extractedText));
         await addImageVector(imageId, embedding, req.user.id);
 
         results.push({
           id: imageId,
-          filename: file.filename,
+          filename,
           original_name: originalName,
           success: true
         });
@@ -500,7 +506,6 @@ router.post('/upload', authenticateToken, upload.array('images', MAX_FILES), asy
         console.error('处理图片失败:', error);
         const originalName = decodeFilename(file.originalname);
         results.push({
-          filename: file.filename,
           original_name: originalName,
           success: false,
           error: error.message
@@ -718,9 +723,24 @@ router.get('/download/:id', authenticateToken, async (req, res) => {
       });
     }
 
-    // 将相对路径转换为绝对路径
-    const absolutePath = path.join(UPLOAD_DIR, image.file_path);
-    res.download(absolutePath, image.original_name);
+    const storage = getStorage();
+
+    // 检查文件是否存在
+    const exists = await storage.exists(image.file_path);
+    if (!exists) {
+      return res.status(404).json({
+        success: false,
+        message: '图片文件不存在'
+      });
+    }
+
+    // 设置响应头
+    res.setHeader('Content-Type', getMimeType(`.${image.file_format}`));
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(image.original_name)}`);
+
+    // 获取文件流并传输
+    const stream = await storage.getStream(image.file_path);
+    stream.pipe(res);
   } catch (error) {
     console.error('下载图片错误:', error);
     res.status(500).json({
@@ -751,6 +771,8 @@ router.post('/batch-download', authenticateToken, async (req, res) => {
       });
     }
 
+    const storage = getStorage();
+
     // 设置响应头
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename=images_${Date.now()}.zip`);
@@ -760,10 +782,14 @@ router.post('/batch-download', authenticateToken, async (req, res) => {
 
     for (const image of images) {
       if (!image.is_deleted) {
-        // 将相对路径转换为绝对路径
-        const absolutePath = path.join(UPLOAD_DIR, image.file_path);
-        if (fs.existsSync(absolutePath)) {
-          archive.file(absolutePath, { name: image.original_name });
+        try {
+          const exists = await storage.exists(image.file_path);
+          if (exists) {
+            const buffer = await storage.getBuffer(image.file_path);
+            archive.append(buffer, { name: image.original_name });
+          }
+        } catch (e) {
+          console.warn(`批量下载跳过文件: ${image.file_path}`, e.message);
         }
       }
     }
@@ -921,17 +947,22 @@ router.post('/:id/reanalyze', authenticateToken, requireAdmin, async (req, res) 
       });
     }
 
-    // 获取图片绝对路径
-    const absolutePath = path.join(UPLOAD_DIR, image.file_path);
-    if (!fs.existsSync(absolutePath)) {
+    const storage = getStorage();
+
+    // 检查文件是否存在
+    const exists = await storage.exists(image.file_path);
+    if (!exists) {
       return res.status(404).json({
         success: false,
         message: '图片文件不存在'
       });
     }
 
+    // 获取图片 Buffer
+    const imageBuffer = await storage.getBuffer(image.file_path);
+
     // 调用 AI 重新识别
-    const aiResult = await processImageWithAI(absolutePath);
+    const aiResult = await processImageWithAI(imageBuffer);
 
     // 更新数据库
     await ImageRepository.updateAIResult(id, {

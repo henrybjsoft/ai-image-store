@@ -62,9 +62,13 @@ class OllamaProvider extends AIProvider {
 
   /**
    * 获取图片的 Base64 编码（不含 data:image/xxx;base64, 前缀）
+   * @param {string|Buffer} imageInput - 文件路径或 Buffer
    */
-  _getImageBase64(imagePath) {
-    const imageBuffer = fs.readFileSync(imagePath);
+  _getImageBase64(imageInput) {
+    if (Buffer.isBuffer(imageInput)) {
+      return imageInput.toString('base64');
+    }
+    const imageBuffer = fs.readFileSync(imageInput);
     return imageBuffer.toString('base64');
   }
 

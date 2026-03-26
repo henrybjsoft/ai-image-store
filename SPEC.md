@@ -26,7 +26,7 @@
 | 主数据库 | PostgreSQL |
 | 向量存储 | pgvector 扩展 |
 | 大模型服务 | DashScope Qwen3.5-plus / Ollama |
-| 文件存储 | 本地文件系统 |
+| 文件存储 | 本地文件系统 / MinIO 对象存储 |
 | 部署方式 | 跨平台（Windows/Linux） |
 
 ### 2.2 系统架构
@@ -57,8 +57,11 @@
          │
          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    本地文件系统                              │
-│                    (图片存储)                                │
+│                   文件存储 (Storage Provider)                │
+│  ┌─────────────────────────┐ ┌─────────────────────────┐   │
+│  │    本地文件系统          │ │    MinIO 对象存储        │   │
+│  │   (LocalStorageProvider) │ │   (MinioStorageProvider) │   │
+│  └─────────────────────────┘ └─────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -676,6 +679,11 @@ image-asset-management/
 │   │   │   │   ├── base.js    # 抽象基类
 │   │   │   │   ├── dashscope.js # DashScope 实现
 │   │   │   │   └── ollama.js  # Ollama 实现
+│   │   │   ├── storage/       # 存储提供商模块
+│   │   │   │   ├── index.js   # 统一入口
+│   │   │   │   ├── base.js    # 抽象基类
+│   │   │   │   ├── local.js   # 本地存储实现
+│   │   │   │   └── minio.js   # MinIO 实现
 │   │   │   ├── aiService.js   # AI 服务封装
 │   │   │   ├── vectorService.js # 向量服务
 │   │   │   └── logService.js  # 日志服务
@@ -757,6 +765,22 @@ THUMBNAIL_QUALITY=80
 
 # 允许的图片格式
 ALLOWED_FORMATS=jpg,jpeg,png,webp,gif,svg
+
+# 存储配置
+STORAGE_TYPE=local              # 可选值: local, minio
+
+# 本地存储配置
+LOCAL_STORAGE_DIR=./uploads
+LOCAL_STORAGE_BASE_URL=/uploads
+
+# MinIO 存储配置
+MINIO_ENDPOINT=localhost
+MINIO_PORT=9000
+MINIO_USE_SSL=false
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_BUCKET=images
+MINIO_PUBLIC_URL=http://localhost:9000/images
 ```
 
 ### 8.2 AI 提供商说明
@@ -870,3 +894,4 @@ ollama pull nomic-embed-text
 | 2026-03-25 | v2.4.0 | AI 服务架构重构（多提供商支持）：<br>- **AI Provider 抽象层**：引入 Provider 模式，支持多种 AI 提供商<br>- **Ollama 支持**：新增 Ollama 本地部署支持，可完全离线运行，无 API 费用<br>- **配置切换**：通过 `AI_PROVIDER` 环境变量切换 DashScope 或 Ollama<br>- **Ollama 配置项**：支持配置服务地址、视觉模型（推荐 llava）、嵌入模型（推荐 nomic-embed-text）<br>- **向量维度兼容**：不同嵌入模型支持不同向量维度（DashScope 1024，nomic-embed-text 768）<br>- **代码结构优化**：services/ai/ 目录下按提供商组织代码 |
 | 2026-03-25 | v2.5.0 | 时间显示优化（UTC 转本地时间）：<br>- **时间工具函数**：新增 `client/src/utils/date.js` 工具模块，统一处理时间转换<br>- **UTC 转本地时间**：所有时间字段（创建时间、更新时间、删除时间、有效期）自动转换为本地时间显示<br>- **支持的格式**：自动识别 ISO 格式（带 Z 或时区）和纯 UTC 时间字符串<br>- **日期选择器支持**：有效期选择时自动转换为本地时间，提交时转回 UTC<br>- **涉及页面**：图片库、仪表盘、图片详情、操作日志、回收站、用户管理 |
 | 2026-03-26 | v3.0.0 | 数据库迁移至 PostgreSQL + pgvector：<br>- **数据库迁移**：从 SQLite (sql.js) 迁移到 PostgreSQL<br>- **向量存储优化**：使用 pgvector 扩展替代 JSON 存储，支持原生向量搜索<br>- **索引优化**：使用 HNSW 索引，大幅提升向量搜索性能<br>- **动态维度**：支持通过环境变量配置向量维度，兼容不同 Embedding 模型<br>- **连接池**：使用 PostgreSQL 连接池管理数据库连接<br>- **SQL 语法适配**：所有 SQL 语句适配 PostgreSQL 语法（$1, $2 参数占位符等）<br>- **新增配置项**：PG_HOST, PG_PORT, PG_DATABASE, PG_USER, PG_PASSWORD, EMBEDDING_DIMENSION<br>- **管理接口**：新增 /api/system/vector-dimension 和 /api/system/rebuild-vectors 接口 |
+| 2026-03-26 | v3.1.0 | 文件存储架构升级（多存储支持）：<br>- **Storage Provider 抽象层**：引入 Provider 模式，支持多种存储方式<br>- **MinIO 支持**：新增 MinIO 对象存储支持，兼容 S3 协议<br>- **本地存储封装**：现有本地存储封装为 LocalStorageProvider<br>- **配置切换**：通过 `STORAGE_TYPE` 环境变量切换本地存储或 MinIO<br>- **MinIO 配置项**：MINIO_ENDPOINT, MINIO_PORT, MINIO_USE_SSL, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, MINIO_BUCKET, MINIO_PUBLIC_URL<br>- **公开访问模式**：MinIO bucket 设置为 public，URL 直接可用<br>- **代码结构优化**：services/storage/ 目录下按存储类型组织代码 |

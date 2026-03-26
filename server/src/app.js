@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { initDatabase } = require('./models/database-pg');
+const { initStorage, isLocalStorage } = require('./services/storage');
 
 // 导入路由
 const authRoutes = require('./routes/auth');
@@ -27,9 +28,6 @@ if (!isProduction) {
 }
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// 静态文件服务
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // API 路由
 app.use('/api/auth', authRoutes);
@@ -74,8 +72,20 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 async function startServer() {
   try {
+    // 初始化存储
+    initStorage();
+    console.log('存储服务初始化完成');
+
+    // 初始化数据库
     await initDatabase();
     console.log('数据库初始化完成');
+
+    // 静态文件服务（仅本地存储时需要）
+    if (isLocalStorage()) {
+      const storage = require('./services/storage').getStorage();
+      app.use('/uploads', express.static(storage.getUploadDir()));
+      console.log('本地文件服务已启动');
+    }
 
     app.listen(PORT, HOST, () => {
       console.log(`服务器运行在 http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);

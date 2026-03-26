@@ -1,13 +1,10 @@
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 const { ImageRepository, LogRepository } = require('../repository');
 const { authenticateToken } = require('../middlewares/auth');
 const { removeImageVector } = require('../services/vectorService');
+const { getStorage } = require('../services/storage');
 
 const router = express.Router();
-
-const UPLOAD_DIR = path.join(__dirname, '../../uploads');
 
 // 所有回收站路由都需要认证
 router.use(authenticateToken);
@@ -80,25 +77,27 @@ router.delete('/:id', async (req, res) => {
       });
     }
 
+    const storage = getStorage();
+
     // 删除文件
     let fileDeleted = true;
-    const absolutePath = path.join(UPLOAD_DIR, image.file_path);
-    if (fs.existsSync(absolutePath)) {
-      try {
-        fs.unlinkSync(absolutePath);
-      } catch (e) {
-        fileDeleted = false;
-        console.warn('删除文件失败:', e.message);
+    try {
+      if (await storage.exists(image.file_path)) {
+        await storage.delete(image.file_path);
       }
+    } catch (e) {
+      fileDeleted = false;
+      console.warn('删除文件失败:', e.message);
     }
+
+    // 删除缩略图
     if (image.thumbnail_path) {
-      const thumbnailPath = path.join(UPLOAD_DIR, image.thumbnail_path);
-      if (fs.existsSync(thumbnailPath)) {
-        try {
-          fs.unlinkSync(thumbnailPath);
-        } catch (e) {
-          console.warn('删除缩略图失败:', e.message);
+      try {
+        if (await storage.exists(image.thumbnail_path)) {
+          await storage.delete(image.thumbnail_path);
         }
+      } catch (e) {
+        console.warn('删除缩略图失败:', e.message);
       }
     }
 
@@ -138,20 +137,20 @@ router.delete('/', async (req, res) => {
 
     let deletedCount = 0;
     let failedFiles = [];
+    const storage = getStorage();
 
     // 删除文件
     for (const image of deletedImages) {
       try {
-        const absolutePath = path.join(UPLOAD_DIR, image.file_path);
-        if (fs.existsSync(absolutePath)) {
-          fs.unlinkSync(absolutePath);
+        // 删除原图
+        if (await storage.exists(image.file_path)) {
+          await storage.delete(image.file_path);
         }
-        if (image.thumbnail_path) {
-          const thumbnailPath = path.join(UPLOAD_DIR, image.thumbnail_path);
-          if (fs.existsSync(thumbnailPath)) {
-            fs.unlinkSync(thumbnailPath);
-          }
+        // 删除缩略图
+        if (image.thumbnail_path && await storage.exists(image.thumbnail_path)) {
+          await storage.delete(image.thumbnail_path);
         }
+        // 删除向量
         await removeImageVector(image.id);
         deletedCount++;
       } catch (fileError) {
