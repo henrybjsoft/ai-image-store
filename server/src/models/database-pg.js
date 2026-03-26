@@ -125,8 +125,26 @@ async function createVectorsTable(dimension) {
   const dim = dimension || embeddingDimension;
 
   try {
-    // 先删除现有的 vectors 表（如果存在）
-    await pool.query('DROP TABLE IF EXISTS vectors');
+    // 检查向量表是否已存在
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'vectors'
+      )
+    `);
+
+    if (tableCheck.rows[0].exists) {
+      // 表已存在，检查维度
+      const currentDim = await getVectorsTableDimension();
+      if (currentDim === dim) {
+        console.log(`向量表已存在，维度: ${dim}`);
+        return dim;
+      } else {
+        console.log(`向量表维度不匹配 (${currentDim} -> ${dim})，需要重建`);
+        await pool.query('DROP TABLE vectors');
+      }
+    }
 
     // 创建新的 vectors 表
     await pool.query(`
