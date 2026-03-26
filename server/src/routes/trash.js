@@ -13,11 +13,11 @@ const UPLOAD_DIR = path.join(__dirname, '../../uploads');
 router.use(authenticateToken);
 
 // 获取回收站列表
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { page = 1, pageSize = 20 } = req.query;
 
-    const result = ImageRepository.findList({
+    const result = await ImageRepository.findList({
       isDeleted: 1,
       page,
       pageSize,
@@ -50,9 +50,9 @@ router.post('/restore', async (req, res) => {
       });
     }
 
-    ImageRepository.restore(ids);
+    await ImageRepository.restore(ids);
 
-    LogRepository.create(req.user.id, 'restore_images', 'image', null, `恢复 ${ids.length} 张图片`, req.ip);
+    await LogRepository.create(req.user.id, 'restore_images', 'image', null, `恢复 ${ids.length} 张图片`, req.ip);
 
     res.json({
       success: true,
@@ -72,7 +72,7 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const image = ImageRepository.findById(id);
+    const image = await ImageRepository.findById(id);
     if (!image || !image.is_deleted) {
       return res.status(404).json({
         success: false,
@@ -103,12 +103,12 @@ router.delete('/:id', async (req, res) => {
     }
 
     // 删除数据库记录
-    ImageRepository.hardDelete(id);
+    await ImageRepository.hardDelete(id);
 
     // 删除向量
-    removeImageVector(id);
+    await removeImageVector(id);
 
-    LogRepository.create(req.user.id, 'permanent_delete_image', 'image', id, `彻底删除图片: ${image.original_name}`, req.ip);
+    await LogRepository.create(req.user.id, 'permanent_delete_image', 'image', id, `彻底删除图片: ${image.original_name}`, req.ip);
 
     if (!fileDeleted) {
       return res.json({
@@ -134,7 +134,7 @@ router.delete('/:id', async (req, res) => {
 router.delete('/', async (req, res) => {
   try {
     // 获取所有已删除图片
-    const deletedImages = ImageRepository.findDeleted();
+    const deletedImages = await ImageRepository.findDeleted();
 
     let deletedCount = 0;
     let failedFiles = [];
@@ -152,7 +152,7 @@ router.delete('/', async (req, res) => {
             fs.unlinkSync(thumbnailPath);
           }
         }
-        removeImageVector(image.id);
+        await removeImageVector(image.id);
         deletedCount++;
       } catch (fileError) {
         // 文件被占用时跳过，记录失败文件
@@ -163,10 +163,10 @@ router.delete('/', async (req, res) => {
 
     // 清空回收站（只删除成功删除文件的数据库记录）
     if (deletedCount > 0) {
-      ImageRepository.emptyTrash();
+      await ImageRepository.emptyTrash();
     }
 
-    LogRepository.create(req.user.id, 'empty_trash', 'image', null, `清空回收站，删除 ${deletedCount} 张图片`, req.ip);
+    await LogRepository.create(req.user.id, 'empty_trash', 'image', null, `清空回收站，删除 ${deletedCount} 张图片`, req.ip);
 
     if (failedFiles.length > 0) {
       res.json({

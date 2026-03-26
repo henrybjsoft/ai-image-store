@@ -8,11 +8,11 @@ const router = express.Router();
 router.use(authenticateToken);
 
 // 获取用户收藏列表
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { page = 1, pageSize = 20 } = req.query;
 
-    const result = FavoriteRepository.findByUser(req.user.id, { page, pageSize });
+    const result = await FavoriteRepository.findByUser(req.user.id, { page, pageSize });
 
     res.json({
       success: true,
@@ -28,9 +28,9 @@ router.get('/', (req, res) => {
 });
 
 // 获取用户收藏数量
-router.get('/count', (req, res) => {
+router.get('/count', async (req, res) => {
   try {
-    const count = FavoriteRepository.countByUser(req.user.id);
+    const count = await FavoriteRepository.countByUser(req.user.id);
 
     res.json({
       success: true,

@@ -7,12 +7,12 @@ const { searchSimilar } = require('../services/vectorService');
 const router = express.Router();
 
 // 辅助函数：为图片添加标签信息和收藏状态
-function enrichImagesWithTags(images, userId = null) {
+async function enrichImagesWithTags(images, userId = null) {
   for (const image of images) {
-    image.tags = ImageRepository.getTags(image.id);
+    image.tags = await ImageRepository.getTags(image.id);
     // 添加收藏状态
     if (userId) {
-      image.is_favorite = FavoriteRepository.isFavorited(userId, image.id) ? 1 : 0;
+      image.is_favorite = await FavoriteRepository.isFavorited(userId, image.id) ? 1 : 0;
     }
 
     if (image.keywords) {
@@ -27,7 +27,7 @@ function enrichImagesWithTags(images, userId = null) {
 }
 
 // 关键字搜索
-router.get('/keyword', authenticateToken, (req, res) => {
+router.get('/keyword', authenticateToken, async (req, res) => {
   try {
     const { q, page = 1, pageSize = 20 } = req.query;
 
@@ -38,9 +38,9 @@ router.get('/keyword', authenticateToken, (req, res) => {
       });
     }
 
-    const result = SearchRepository.searchByKeyword(q.trim(), { page, pageSize });
+    const result = await SearchRepository.searchByKeyword(q.trim(), { page, pageSize });
 
-    enrichImagesWithTags(result.list, req.user.id);
+    await enrichImagesWithTags(result.list, req.user.id);
 
     res.json({
       success: true,
@@ -77,7 +77,7 @@ router.post('/semantic', authenticateToken, async (req, res) => {
     const searchUserId = onlyMine ? req.user.id : null;
 
     // 搜索相似向量，使用topK参数
-    const similarities = searchSimilar(embedding, parseInt(topK), searchUserId);
+    const similarities = await searchSimilar(embedding, parseInt(topK), searchUserId);
 
     if (similarities.length === 0) {
       return res.json({
@@ -97,16 +97,16 @@ router.post('/semantic', authenticateToken, async (req, res) => {
     const similarityMap = new Map(similarities.map(s => [s.imageId, s.distance]));
 
     // 获取图片详情并按相似度排序
-    let images = SearchRepository.findByIdsSorted(imageIds, similarityMap);
+    let images = await SearchRepository.findByIdsSorted(imageIds, similarityMap);
 
     // 获取每张图片的标签、相似度和收藏状态
     for (const image of images) {
-      image.tags = ImageRepository.getTags(image.id);
+      image.tags = await ImageRepository.getTags(image.id);
       // distance 转换回 similarity：similarity = 1 - distance
       const distance = similarityMap.get(image.id);
       image.similarity = distance !== undefined ? 1 - distance : 0;
       // 添加收藏状态
-      image.is_favorite = FavoriteRepository.isFavorited(req.user.id, image.id) ? 1 : 0;
+      image.is_favorite = await FavoriteRepository.isFavorited(req.user.id, image.id) ? 1 : 0;
 
       if (image.keywords) {
         try {
@@ -142,7 +142,7 @@ router.post('/semantic', authenticateToken, async (req, res) => {
 });
 
 // 按标签筛选
-router.get('/by-tag', authenticateToken, (req, res) => {
+router.get('/by-tag', authenticateToken, async (req, res) => {
   try {
     const { tagId, page = 1, pageSize = 20 } = req.query;
 
@@ -153,9 +153,9 @@ router.get('/by-tag', authenticateToken, (req, res) => {
       });
     }
 
-    const result = TagRepository.findByTag(tagId, { page, pageSize });
+    const result = await TagRepository.findByTag(tagId, { page, pageSize });
 
-    enrichImagesWithTags(result.list);
+    await enrichImagesWithTags(result.list);
 
     res.json({
       success: true,

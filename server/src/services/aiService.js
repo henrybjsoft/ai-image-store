@@ -4,14 +4,13 @@
  * 支持多种 AI 提供商（DashScope、Ollama）
  */
 const { getProvider } = require('./ai');
-const { getDatabase } = require('../models/database');
+const { CategoryRepository } = require('../repository');
 
 /**
  * 根据关键词匹配分类
  */
-function matchCategory(keywords, description) {
-  const db = getDatabase();
-  const categories = db.prepare('SELECT * FROM categories').all();
+async function matchCategory(keywords, description) {
+  const categories = await CategoryRepository.findAll();
   const text = (keywords.join(' ') + ' ' + description).toLowerCase();
 
   const categoryKeywords = {
@@ -56,7 +55,7 @@ async function processImageWithAI(imagePath) {
     const result = await provider.analyzeImage(imagePath);
 
     // 匹配分类
-    const categoryId = matchCategory(result.keywords, result.description);
+    const categoryId = await matchCategory(result.keywords, result.description);
 
     return {
       description: result.description,

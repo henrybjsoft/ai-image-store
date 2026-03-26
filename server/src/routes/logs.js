@@ -8,7 +8,7 @@ const router = express.Router();
 router.use(authenticateToken);
 
 // 获取操作日志列表
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { userId, action, startDate, endDate, page = 1, pageSize = 20 } = req.query;
 
@@ -22,8 +22,8 @@ router.get('/', (req, res) => {
     filters.limit = parseInt(pageSize);
     filters.offset = offset;
 
-    const logs = LogRepository.findList(filters);
-    const total = LogRepository.count(filters);
+    const logs = await LogRepository.findList(filters);
+    const total = await LogRepository.count(filters);
 
     res.json({
       success: true,

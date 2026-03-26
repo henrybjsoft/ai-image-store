@@ -39,7 +39,7 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    const user = UserRepository.findByUsername(username);
+    const user = await UserRepository.findByUsername(username);
 
     if (!user) {
       return res.status(401).json({
@@ -68,7 +68,7 @@ router.post('/login', async (req, res) => {
     const token = generateToken(user.id);
 
     // 记录登录日志
-    LogRepository.create(user.id, 'login', 'user', user.id, '用户登录', req.ip);
+    await LogRepository.create(user.id, 'login', 'user', user.id, '用户登录', req.ip);
 
     res.json({
       success: true,
@@ -94,7 +94,7 @@ router.post('/login', async (req, res) => {
 // 登出
 router.post('/logout', authenticateToken, async (req, res) => {
   try {
-    LogRepository.create(req.user.id, 'logout', 'user', req.user.id, '用户登出', req.ip);
+    await LogRepository.create(req.user.id, 'logout', 'user', req.user.id, '用户登出', req.ip);
     res.json({
       success: true,
       message: '登出成功'

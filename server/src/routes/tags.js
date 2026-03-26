@@ -5,9 +5,9 @@ const { authenticateToken } = require('../middlewares/auth');
 const router = express.Router();
 
 // 获取所有标签（公开）
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const tags = TagRepository.findAll();
+    const tags = await TagRepository.findAll();
 
     res.json({
       success: true,
@@ -38,16 +38,16 @@ router.post('/', async (req, res) => {
     }
 
     // 检查标签是否已存在
-    if (TagRepository.findByName(name.trim())) {
+    if (await TagRepository.findByName(name.trim())) {
       return res.status(400).json({
         success: false,
         message: '标签已存在'
       });
     }
 
-    const tag = TagRepository.create(name.trim());
+    const tag = await TagRepository.create(name.trim());
 
-    LogRepository.create(req.user.id, 'create_tag', 'tag', tag.id, `创建标签: ${name}`, req.ip);
+    await LogRepository.create(req.user.id, 'create_tag', 'tag', tag.id, `创建标签: ${name}`, req.ip);
 
     res.json({
       success: true,
@@ -76,7 +76,7 @@ router.put('/:id', async (req, res) => {
       });
     }
 
-    const tag = TagRepository.findById(id);
+    const tag = await TagRepository.findById(id);
 
     if (!tag) {
       return res.status(404).json({
@@ -86,16 +86,16 @@ router.put('/:id', async (req, res) => {
     }
 
     // 检查标签名是否被占用
-    if (TagRepository.isNameTaken(name.trim(), id)) {
+    if (await TagRepository.isNameTaken(name.trim(), id)) {
       return res.status(400).json({
         success: false,
         message: '标签名已被使用'
       });
     }
 
-    TagRepository.update(id, name.trim());
+    await TagRepository.update(id, name.trim());
 
-    LogRepository.create(req.user.id, 'update_tag', 'tag', id, `更新标签: ${tag.name} -> ${name}`, req.ip);
+    await LogRepository.create(req.user.id, 'update_tag', 'tag', id, `更新标签: ${tag.name} -> ${name}`, req.ip);
 
     res.json({
       success: true,
@@ -115,7 +115,7 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const tag = TagRepository.findById(id);
+    const tag = await TagRepository.findById(id);
     if (!tag) {
       return res.status(404).json({
         success: false,
@@ -123,9 +123,9 @@ router.delete('/:id', async (req, res) => {
       });
     }
 
-    TagRepository.delete(id);
+    await TagRepository.delete(id);
 
-    LogRepository.create(req.user.id, 'delete_tag', 'tag', id, `删除标签: ${tag.name}`, req.ip);
+    await LogRepository.create(req.user.id, 'delete_tag', 'tag', id, `删除标签: ${tag.name}`, req.ip);
 
     res.json({
       success: true,

@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { initDatabase } = require('./models/database');
+const { initDatabase } = require('./models/database-pg');
 
 // 导入路由
 const authRoutes = require('./routes/auth');

@@ -155,9 +155,9 @@ async function getImageDimensions(filePath) {
 }
 
 // 辅助函数：为图片添加标签信息
-function enrichImageWithTags(image) {
+async function enrichImageWithTags(image) {
   if (image) {
-    image.tags = ImageRepository.getTags(image.id);
+    image.tags = await ImageRepository.getTags(image.id);
     if (image.keywords) {
       try {
         image.keywords = JSON.parse(image.keywords);
@@ -181,10 +181,10 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
 
     // 检查上传限额（普通用户）
     if (req.user.role !== 'admin') {
-      const user = UserRepository.findById(req.user.id);
+      const user = await UserRepository.findById(req.user.id);
       const quota = user.quota || 0;
       if (quota > 0) {
-        const currentCount = UserRepository.getImageCount(req.user.id);
+        const currentCount = await UserRepository.getImageCount(req.user.id);
         if (currentCount + req.files.length > quota) {
           return res.status(400).json({
             success: false,
@@ -321,7 +321,7 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
         // 如果用户手动指定了分类，则使用手动指定的分类，否则使用AI识别的分类
         const finalCategoryId = manualCategoryId || aiResult.categoryId;
 
-        const imageId = ImageRepository.create({
+        const imageId = await ImageRepository.create({
           filename,
           originalName,
           filePath: relativeFilePath,
@@ -340,7 +340,7 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
         // 如果用户手动指定了标签，则添加这些标签
         if (manualTagIds && manualTagIds.length > 0) {
           for (const tagId of manualTagIds) {
-            ImageRepository.addTag(imageId, tagId);
+            await ImageRepository.addTag(imageId, tagId);
           }
         }
 
@@ -376,7 +376,7 @@ router.post('/upload-progress', authenticateToken, uploadMemory.array('images', 
           }
         });
 
-        LogRepository.create(req.user.id, 'upload_image', 'image', imageId, `上传图片: ${originalName}`, req.ip);
+        await LogRepository.create(req.user.id, 'upload_image', 'image', imageId, `上传图片: ${originalName}`, req.ip);
 
         return { success: true, imageId };
       } catch (error) {
@@ -461,7 +461,7 @@ router.post('/upload', authenticateToken, upload.array('images', MAX_FILES), asy
         // 如果用户手动指定了分类，则使用手动指定的分类，否则使用AI识别的分类
         const finalCategoryId = manualCategoryId || aiResult.categoryId;
 
-        const imageId = ImageRepository.create({
+        const imageId = await ImageRepository.create({
           filename: file.filename,
           originalName,
           filePath: relativeFilePath,
@@ -480,7 +480,7 @@ router.post('/upload', authenticateToken, upload.array('images', MAX_FILES), asy
         // 如果用户手动指定了标签，则添加这些标签
         if (manualTagIds && manualTagIds.length > 0) {
           for (const tagId of manualTagIds) {
-            ImageRepository.addTag(imageId, tagId);
+            await ImageRepository.addTag(imageId, tagId);
           }
         }
 
@@ -495,7 +495,7 @@ router.post('/upload', authenticateToken, upload.array('images', MAX_FILES), asy
           success: true
         });
 
-        LogRepository.create(req.user.id, 'upload_image', 'image', imageId, `上传图片: ${originalName}`, req.ip);
+        await LogRepository.create(req.user.id, 'upload_image', 'image', imageId, `上传图片: ${originalName}`, req.ip);
       } catch (error) {
         console.error('处理图片失败:', error);
         const originalName = decodeFilename(file.originalname);
@@ -523,7 +523,7 @@ router.post('/upload', authenticateToken, upload.array('images', MAX_FILES), asy
 });
 
 // 获取图片列表
-router.get('/', authenticateToken, (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
     const {
       categoryId,
@@ -535,7 +535,7 @@ router.get('/', authenticateToken, (req, res) => {
       sortOrder = 'DESC'
     } = req.query;
 
-    const result = ImageRepository.findList({
+    const result = await ImageRepository.findList({
       categoryId,
       userId: req.user.id,
       keyword,
@@ -560,11 +560,11 @@ router.get('/', authenticateToken, (req, res) => {
 });
 
 // 获取图片详情
-router.get('/:id', authenticateToken, (req, res) => {
+router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const image = ImageRepository.findByIdWithDetails(id);
+    const image = await ImageRepository.findByIdWithDetails(id);
 
     if (!image || image.is_deleted) {
       return res.status(404).json({
@@ -574,9 +574,9 @@ router.get('/:id', authenticateToken, (req, res) => {
     }
 
     // 检查当前用户是否收藏
-    image.is_favorite = FavoriteRepository.isFavorited(req.user.id, parseInt(id)) ? 1 : 0;
+    image.is_favorite = await FavoriteRepository.isFavorited(req.user.id, parseInt(id)) ? 1 : 0;
 
-    enrichImageWithTags(image);
+    await enrichImageWithTags(image);
 
     res.json({
       success: true,
@@ -597,7 +597,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
     const { description, categoryId, keywords } = req.body;
 
-    const image = ImageRepository.findById(id);
+    const image = await ImageRepository.findById(id);
     if (!image || image.is_deleted) {
       return res.status(404).json({
         success: false,
@@ -605,13 +605,13 @@ router.put('/:id', authenticateToken, async (req, res) => {
       });
     }
 
-    ImageRepository.update(id, {
+    await ImageRepository.update(id, {
       description,
       categoryId,
       keywords: keywords ? JSON.stringify(keywords) : null
     });
 
-    LogRepository.create(req.user.id, 'update_image', 'image', id, `更新图片信息`, req.ip);
+    await LogRepository.create(req.user.id, 'update_image', 'image', id, `更新图片信息`, req.ip);
 
     res.json({
       success: true,
@@ -631,7 +631,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const image = ImageRepository.findById(id);
+    const image = await ImageRepository.findById(id);
     if (!image) {
       return res.status(404).json({
         success: false,
@@ -647,9 +647,9 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       });
     }
 
-    ImageRepository.softDelete(id);
+    await ImageRepository.softDelete(id);
 
-    LogRepository.create(req.user.id, 'delete_image', 'image', id, `删除图片: ${image.original_name}`, req.ip);
+    await LogRepository.create(req.user.id, 'delete_image', 'image', id, `删除图片: ${image.original_name}`, req.ip);
 
     res.json({
       success: true,
@@ -678,7 +678,7 @@ router.post('/batch-delete', authenticateToken, async (req, res) => {
 
     // 普通用户只能删除自己上传的图片
     if (req.user.role !== 'admin') {
-      const images = ImageRepository.findByIds(ids);
+      const images = await ImageRepository.findByIds(ids);
       const notOwned = images.filter(img => img.uploaded_by !== req.user.id);
       if (notOwned.length > 0) {
         return res.status(403).json({
@@ -688,9 +688,9 @@ router.post('/batch-delete', authenticateToken, async (req, res) => {
       }
     }
 
-    ImageRepository.softDeleteBatch(ids);
+    await ImageRepository.softDeleteBatch(ids);
 
-    LogRepository.create(req.user.id, 'batch_delete_images', 'image', null, `批量删除 ${ids.length} 张图片`, req.ip);
+    await LogRepository.create(req.user.id, 'batch_delete_images', 'image', null, `批量删除 ${ids.length} 张图片`, req.ip);
 
     res.json({
       success: true,
@@ -706,11 +706,11 @@ router.post('/batch-delete', authenticateToken, async (req, res) => {
 });
 
 // 下载单张图片
-router.get('/download/:id', authenticateToken, (req, res) => {
+router.get('/download/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const image = ImageRepository.findById(id);
+    const image = await ImageRepository.findById(id);
     if (!image || image.is_deleted) {
       return res.status(404).json({
         success: false,
@@ -731,7 +731,7 @@ router.get('/download/:id', authenticateToken, (req, res) => {
 });
 
 // 批量下载
-router.post('/batch-download', authenticateToken, (req, res) => {
+router.post('/batch-download', authenticateToken, async (req, res) => {
   try {
     const { ids } = req.body;
 
@@ -742,7 +742,7 @@ router.post('/batch-download', authenticateToken, (req, res) => {
       });
     }
 
-    const images = ImageRepository.findByIds(ids);
+    const images = await ImageRepository.findByIds(ids);
 
     if (images.length === 0) {
       return res.status(404).json({
@@ -783,7 +783,7 @@ router.put('/:id/favorite', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const image = ImageRepository.findById(id);
+    const image = await ImageRepository.findById(id);
     if (!image || image.is_deleted) {
       return res.status(404).json({
         success: false,
@@ -791,9 +791,9 @@ router.put('/:id/favorite', authenticateToken, async (req, res) => {
       });
     }
 
-    const isFavorited = FavoriteRepository.toggle(req.user.id, parseInt(id));
+    const isFavorited = await FavoriteRepository.toggle(req.user.id, parseInt(id));
 
-    LogRepository.create(req.user.id, isFavorited ? 'favorite_image' : 'unfavorite_image', 'image', id,
+    await LogRepository.create(req.user.id, isFavorited ? 'favorite_image' : 'unfavorite_image', 'image', id,
       `${isFavorited ? '收藏' : '取消收藏'}图片: ${image.original_name}`, req.ip);
 
     res.json({
@@ -816,7 +816,7 @@ router.put('/:id/category', authenticateToken, async (req, res) => {
     const { id } = req.params;
     const { categoryId } = req.body;
 
-    const image = ImageRepository.findById(id);
+    const image = await ImageRepository.findById(id);
     if (!image || image.is_deleted) {
       return res.status(404).json({
         success: false,
@@ -824,9 +824,9 @@ router.put('/:id/category', authenticateToken, async (req, res) => {
       });
     }
 
-    ImageRepository.updateCategory(id, categoryId);
+    await ImageRepository.updateCategory(id, categoryId);
 
-    LogRepository.create(req.user.id, 'change_category', 'image', id, `调整图片分类: ${image.original_name}`, req.ip);
+    await LogRepository.create(req.user.id, 'change_category', 'image', id, `调整图片分类: ${image.original_name}`, req.ip);
 
     res.json({
       success: true,
@@ -847,7 +847,7 @@ router.post('/:id/tags', authenticateToken, async (req, res) => {
     const { id } = req.params;
     const { tagId } = req.body;
 
-    const image = ImageRepository.findById(id);
+    const image = await ImageRepository.findById(id);
     if (!image || image.is_deleted) {
       return res.status(404).json({
         success: false,
@@ -855,7 +855,7 @@ router.post('/:id/tags', authenticateToken, async (req, res) => {
       });
     }
 
-    const tag = TagRepository.findById(tagId);
+    const tag = await TagRepository.findById(tagId);
     if (!tag) {
       return res.status(404).json({
         success: false,
@@ -863,7 +863,7 @@ router.post('/:id/tags', authenticateToken, async (req, res) => {
       });
     }
 
-    const added = ImageRepository.addTag(id, tagId);
+    const added = await ImageRepository.addTag(id, tagId);
     if (!added) {
       return res.status(400).json({
         success: false,
@@ -871,7 +871,7 @@ router.post('/:id/tags', authenticateToken, async (req, res) => {
       });
     }
 
-    LogRepository.create(req.user.id, 'add_tag', 'image', id, `为图片添加标签: ${tag.name}`, req.ip);
+    await LogRepository.create(req.user.id, 'add_tag', 'image', id, `为图片添加标签: ${tag.name}`, req.ip);
 
     res.json({
       success: true,
@@ -891,9 +891,9 @@ router.delete('/:id/tags/:tagId', authenticateToken, async (req, res) => {
   try {
     const { id, tagId } = req.params;
 
-    ImageRepository.removeTag(id, tagId);
+    await ImageRepository.removeTag(id, tagId);
 
-    LogRepository.create(req.user.id, 'remove_tag', 'image', id, `移除图片标签`, req.ip);
+    await LogRepository.create(req.user.id, 'remove_tag', 'image', id, `移除图片标签`, req.ip);
 
     res.json({
       success: true,
@@ -913,7 +913,7 @@ router.post('/:id/reanalyze', authenticateToken, requireAdmin, async (req, res) 
   try {
     const { id } = req.params;
 
-    const image = ImageRepository.findById(id);
+    const image = await ImageRepository.findById(id);
     if (!image || image.is_deleted) {
       return res.status(404).json({
         success: false,
@@ -934,7 +934,7 @@ router.post('/:id/reanalyze', authenticateToken, requireAdmin, async (req, res) 
     const aiResult = await processImageWithAI(absolutePath);
 
     // 更新数据库
-    ImageRepository.updateAIResult(id, {
+    await ImageRepository.updateAIResult(id, {
       description: aiResult.description,
       keywords: JSON.stringify(aiResult.keywords),
       categoryId: aiResult.categoryId,
@@ -946,7 +946,7 @@ router.post('/:id/reanalyze', authenticateToken, requireAdmin, async (req, res) 
     const embedding = await getEmbedding(buildEmbeddingText(aiResult.description, aiResult.extractedText));
     await addImageVector(id, embedding, image.uploaded_by);
 
-    LogRepository.create(req.user.id, 'reanalyze_image', 'image', id, `重新识别图片: ${image.original_name}`, req.ip);
+    await LogRepository.create(req.user.id, 'reanalyze_image', 'image', id, `重新识别图片: ${image.original_name}`, req.ip);
 
     res.json({
       success: true,
@@ -955,7 +955,7 @@ router.post('/:id/reanalyze', authenticateToken, requireAdmin, async (req, res) 
         description: aiResult.description,
         keywords: aiResult.keywords,
         categoryId: aiResult.categoryId,
-        categoryName: aiResult.categoryId ? CategoryRepository.getNameById(aiResult.categoryId) : null,
+        categoryName: aiResult.categoryId ? await CategoryRepository.getNameById(aiResult.categoryId) : null,
         extractedText: aiResult.extractedText
       }
     });

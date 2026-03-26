@@ -9,10 +9,10 @@ const router = express.Router();
 router.use(authenticateToken);
 
 // 获取当前用户配额信息
-router.get('/quota', (req, res) => {
+router.get('/quota', async (req, res) => {
   try {
-    const user = UserRepository.findById(req.user.id);
-    const imageCount = UserRepository.getImageCount(req.user.id);
+    const user = await UserRepository.findById(req.user.id);
+    const imageCount = await UserRepository.getImageCount(req.user.id);
 
     res.json({
       success: true,
@@ -32,15 +32,15 @@ router.get('/quota', (req, res) => {
 });
 
 // 获取用户列表（仅管理员）
-router.get('/', requireAdmin, (req, res) => {
+router.get('/', requireAdmin, async (req, res) => {
   try {
-    const users = UserRepository.findAll();
+    const users = await UserRepository.findAll();
 
     // 为每个用户添加图片数量
-    const usersWithCount = users.map(user => ({
+    const usersWithCount = await Promise.all(users.map(async user => ({
       ...user,
-      imageCount: UserRepository.getImageCount(user.id)
-    }));
+      imageCount: await UserRepository.getImageCount(user.id)
+    })));
 
     res.json({
       success: true,
@@ -82,7 +82,7 @@ router.post('/', requireAdmin, async (req, res) => {
     }
 
     // 检查用户名是否已存在
-    if (UserRepository.isUsernameTaken(username)) {
+    if (await UserRepository.isUsernameTaken(username)) {
       return res.status(400).json({
         success: false,
         message: '用户名已存在'
@@ -90,7 +90,7 @@ router.post('/', requireAdmin, async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = UserRepository.create({
+    const user = await UserRepository.create({
       username,
       passwordHash,
       name,
@@ -102,7 +102,7 @@ router.post('/', requireAdmin, async (req, res) => {
       validUntil
     });
 
-    LogRepository.create(req.user.id, 'create_user', 'user', user.id, `创建用户: ${username}`, req.ip);
+    await LogRepository.create(req.user.id, 'create_user', 'user', user.id, `创建用户: ${username}`, req.ip);
 
     res.json({
       success: true,
@@ -125,7 +125,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
     const { username, name, description, role, status, quota, validFrom, validUntil } = req.body;
 
     // 检查用户是否存在
-    const user = UserRepository.findById(id);
+    const user = await UserRepository.findById(id);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -142,8 +142,8 @@ router.put('/:id', requireAdmin, async (req, res) => {
           message: 'admin 用户名不可修改'
         });
       }
-      UserRepository.updateNameAndDescription(id, name, description);
-      LogRepository.create(req.user.id, 'update_user', 'user', id, `更新admin用户信息`, req.ip);
+      await UserRepository.updateNameAndDescription(id, name, description);
+      await LogRepository.create(req.user.id, 'update_user', 'user', id, `更新admin用户信息`, req.ip);
       return res.json({
         success: true,
         message: '用户信息更新成功'
@@ -158,14 +158,14 @@ router.put('/:id', requireAdmin, async (req, res) => {
     }
 
     // 检查用户名是否被其他用户占用
-    if (UserRepository.isUsernameTaken(username, id)) {
+    if (await UserRepository.isUsernameTaken(username, id)) {
       return res.status(400).json({
         success: false,
         message: '用户名已被使用'
       });
     }
 
-    UserRepository.update(id, {
+    await UserRepository.update(id, {
       username,
       name,
       description,
@@ -176,7 +176,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
       validUntil
     });
 
-    LogRepository.create(req.user.id, 'update_user', 'user', id, `更新用户: ${username}`, req.ip);
+    await LogRepository.create(req.user.id, 'update_user', 'user', id, `更新用户: ${username}`, req.ip);
 
     res.json({
       success: true,
@@ -211,7 +211,7 @@ router.put('/me/password', async (req, res) => {
     }
 
     // 获取当前用户
-    const user = UserRepository.findById(req.user.id);
+    const user = await UserRepository.findById(req.user.id);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -230,9 +230,9 @@ router.put('/me/password', async (req, res) => {
 
     // 更新密码
     const passwordHash = await bcrypt.hash(newPassword, 10);
-    UserRepository.updatePassword(req.user.id, passwordHash);
+    await UserRepository.updatePassword(req.user.id, passwordHash);
 
-    LogRepository.create(req.user.id, 'change_password', 'user', req.user.id, `用户修改自己的密码`, req.ip);
+    await LogRepository.create(req.user.id, 'change_password', 'user', req.user.id, `用户修改自己的密码`, req.ip);
 
     res.json({
       success: true,
@@ -261,7 +261,7 @@ router.put('/:id/password', requireAdmin, async (req, res) => {
     }
 
     // 检查用户是否存在
-    const user = UserRepository.findById(id);
+    const user = await UserRepository.findById(id);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -270,9 +270,9 @@ router.put('/:id/password', requireAdmin, async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    UserRepository.updatePassword(id, passwordHash);
+    await UserRepository.updatePassword(id, passwordHash);
 
-    LogRepository.create(req.user.id, 'change_password', 'user', id, `重置用户密码: ${user.username}`, req.ip);
+    await LogRepository.create(req.user.id, 'change_password', 'user', id, `重置用户密码: ${user.username}`, req.ip);
 
     res.json({
       success: true,
@@ -293,7 +293,7 @@ router.delete('/:id', requireAdmin, async (req, res) => {
     const { id } = req.params;
 
     // 不能删除admin用户
-    const user = UserRepository.findById(id);
+    const user = await UserRepository.findById(id);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -316,9 +316,9 @@ router.delete('/:id', requireAdmin, async (req, res) => {
       });
     }
 
-    UserRepository.delete(id);
+    await UserRepository.delete(id);
 
-    LogRepository.create(req.user.id, 'delete_user', 'user', id, `删除用户: ${user.username}`, req.ip);
+    await LogRepository.create(req.user.id, 'delete_user', 'user', id, `删除用户: ${user.username}`, req.ip);
 
     res.json({
       success: true,

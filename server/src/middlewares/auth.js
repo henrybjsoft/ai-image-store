@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { getDatabase } = require('../models/database');
+const { UserRepository } = require('../repository');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key';
 
@@ -14,7 +14,7 @@ function authenticateToken(req, res, next) {
     });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  jwt.verify(token, JWT_SECRET, async (err, user) => {
     if (err) {
       return res.status(403).json({
         success: false,
@@ -22,19 +22,31 @@ function authenticateToken(req, res, next) {
       });
     }
 
-    // 验证用户是否存在，并获取完整信息
-    const db = getDatabase();
-    const userRecord = db.prepare('SELECT id, username, name, role, status FROM users WHERE id = ?').get(user.userId);
+    try {
+      // 验证用户是否存在，并获取完整信息
+      const userRecord = await UserRepository.findById(user.userId);
 
-    if (!userRecord) {
-      return res.status(403).json({
+      if (!userRecord) {
+        return res.status(403).json({
+          success: false,
+          message: '用户不存在'
+        });
+      }
+
+      req.user = {
+        id: userRecord.id,
+        username: userRecord.username,
+        name: userRecord.name,
+        role: userRecord.role
+      };
+      next();
+    } catch (error) {
+      console.error('认证错误:', error);
+      return res.status(500).json({
         success: false,
-        message: '用户不存在'
+        message: '认证失败'
       });
     }
-
-    req.user = userRecord;
-    next();
   });
 }
 

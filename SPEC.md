@@ -23,9 +23,9 @@
 | 前端框架 | Vue 3 |
 | UI 组件库 | Ant Design Vue |
 | 后端框架 | Node.js + Express |
-| 主数据库 | SQLite (sql.js) |
-| 向量存储 | 本地 JSON 文件 + 余弦相似度计算 |
-| 大模型服务 | DashScope Qwen3.5-plus |
+| 主数据库 | PostgreSQL |
+| 向量存储 | pgvector 扩展 |
+| 大模型服务 | DashScope Qwen3.5-plus / Ollama |
 | 文件存储 | 本地文件系统 |
 | 部署方式 | 跨平台（Windows/Linux） |
 
@@ -48,15 +48,17 @@
 └─────────────────────────────────────────────────────────────┘
          │                    │                    │
          ▼                    ▼                    ▼
-┌─────────────┐     ┌─────────────────┐    ┌─────────────┐
-│   SQLite    │     │   向量存储       │    │ DashScope   │
-│  (sql.js)   │     │  (本地JSON)      │    │ (大模型API) │
-└─────────────┘     └─────────────────┘    └─────────────┘
+┌─────────────────────────────────────┐    ┌─────────────┐
+│          PostgreSQL                 │    │ DashScope   │
+│  ┌─────────────┐ ┌───────────────┐  │    │ / Ollama    │
+│  │  业务数据表  │ │ pgvector 向量 │  │    │ (大模型API) │
+│  └─────────────┘ └───────────────┘  │    └─────────────┘
+└─────────────────────────────────────┘
          │
          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    本地文件系统                              │
-│              (图片存储、向量索引文件)                         │
+│                    (图片存储)                                │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -320,34 +322,40 @@
 
 ## 4. 数据库设计
 
-### 4.1 SQLite 表结构
+### 4.1 PostgreSQL 表结构
 
 #### 4.1.1 用户表 (users)
 ```sql
 CREATE TABLE users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   username VARCHAR(50) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  name VARCHAR(255),
+  description TEXT,
+  role VARCHAR(50) DEFAULT 'user',
+  status INTEGER DEFAULT 1,
+  quota INTEGER DEFAULT 100,
+  valid_from DATE,
+  valid_until DATE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
 #### 4.1.2 分类表 (categories)
 ```sql
 CREATE TABLE categories (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
-  parent_id INTEGER NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (parent_id) REFERENCES categories(id)
+  parent_id INTEGER NULL REFERENCES categories(id) ON DELETE SET NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
 #### 4.1.3 图片表 (images)
 ```sql
 CREATE TABLE images (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   filename VARCHAR(255) NOT NULL,
   original_name VARCHAR(255) NOT NULL,
   file_path VARCHAR(500) NOT NULL,
@@ -358,14 +366,14 @@ CREATE TABLE images (
   height INTEGER,
   description TEXT,
   keywords TEXT,
-  category_id INTEGER,
-  uploaded_by INTEGER NOT NULL,
-  is_deleted BOOLEAN DEFAULT 0,
-  deleted_at DATETIME,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (category_id) REFERENCES categories(id),
-  FOREIGN KEY (uploaded_by) REFERENCES users(id)
+  extracted_text TEXT,
+  category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+  uploaded_by INTEGER NOT NULL REFERENCES users(id),
+  is_favorite INTEGER DEFAULT 0,
+  is_deleted INTEGER DEFAULT 0,
+  deleted_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
@@ -374,49 +382,44 @@ CREATE TABLE images (
 #### 4.1.4 标签表 (tags)
 ```sql
 CREATE TABLE tags (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name VARCHAR(50) UNIQUE NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
 #### 4.1.5 图片标签关联表 (image_tags)
 ```sql
 CREATE TABLE image_tags (
-  image_id INTEGER NOT NULL,
-  tag_id INTEGER NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (image_id, tag_id),
-  FOREIGN KEY (image_id) REFERENCES images(id),
-  FOREIGN KEY (tag_id) REFERENCES tags(id)
+  image_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+  tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (image_id, tag_id)
 );
 ```
 
 #### 4.1.6 操作日志表 (logs)
 ```sql
 CREATE TABLE logs (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id),
   action VARCHAR(50) NOT NULL,
   target_type VARCHAR(50),
   target_id INTEGER,
   details TEXT,
   ip_address VARCHAR(50),
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id)
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
 #### 4.1.7 收藏表 (favorites)
 ```sql
 CREATE TABLE favorites (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
-  image_id INTEGER NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(user_id, image_id),
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  image_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, image_id)
 );
 ```
 
@@ -425,23 +428,34 @@ CREATE TABLE favorites (
 - 用户删除时自动删除其收藏记录（CASCADE DELETE）
 - 图片彻底删除时自动删除相关收藏记录（CASCADE DELETE）
 
-### 4.2 向量存储设计
+### 4.2 向量存储设计（pgvector）
 
-- 使用 SQLite 数据库存储图片描述的向量表示
-- 向量维度：1024（DashScope text-embedding-v3 输出维度）
+- 使用 PostgreSQL 的 pgvector 扩展存储向量
+- 向量维度：动态配置（默认 1024，兼容不同 Embedding 模型）
 - 存储表：`vectors`
-- 索引结构：`image_id` 为主键，`embedding` 存储 JSON 格式的向量数组
-- 搜索算法：余弦相似度
+- 索引：HNSW 索引，适合高维向量快速检索
+- 搜索算法：余弦距离（vector_cosine_ops）
 
 #### 4.2.1 向量表 (vectors)
 ```sql
 CREATE TABLE vectors (
-  image_id INTEGER PRIMARY KEY,
-  embedding TEXT NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
+  image_id INTEGER PRIMARY KEY REFERENCES images(id) ON DELETE CASCADE,
+  embedding vector(1024) NOT NULL,
+  user_id INTEGER REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 创建向量索引
+CREATE INDEX ON vectors USING hnsw (embedding vector_cosine_ops);
 ```
+
+#### 4.2.2 向量维度管理
+- 支持动态配置向量维度（EMBEDDING_DIMENSION 环境变量）
+- 不同 Embedding 模型对应不同维度：
+  - DashScope text-embedding-v3: 1024
+  - Ollama nomic-embed-text: 768
+  - Ollama mxbai-embed-large: 1024
+- 提供管理接口重建向量表（POST /api/system/rebuild-vectors）
 
 ### 4.3 数据访问层设计
 
@@ -667,13 +681,12 @@ image-asset-management/
 │   │   │   └── logService.js  # 日志服务
 │   │   ├── repository/        # 数据访问层（Repository 模式）
 │   │   ├── models/            # 数据模型
+│   │   │   └── database-pg.js # PostgreSQL 连接模块
 │   │   ├── middlewares/       # 中间件
 │   │   └── app.js             # 入口文件
 │   ├── uploads/               # 上传文件存储
 │   │   ├── YYYY-MM/           # 按年月分目录存储原图
 │   │   └── thumbnails/        # 缩略图目录
-│   ├── data/                  # SQLite 数据库
-│   │   └── database.db        # SQLite 数据库文件（含向量数据）
 │   ├── public/                # 前端构建产物（生产环境）
 │   ├── .env                   # 环境变量配置
 │   ├── .env.example           # 环境变量模板
@@ -705,6 +718,19 @@ NODE_ENV=development
 # JWT 密钥
 JWT_SECRET=your-super-secret-jwt-key-change-in-production
 JWT_EXPIRES_IN=7d
+
+# PostgreSQL 数据库配置
+PG_HOST=localhost
+PG_PORT=5432
+PG_DATABASE=image_asset
+PG_USER=postgres
+PG_PASSWORD=your_password
+
+# 向量维度配置（根据 Embedding 模型设置）
+# DashScope text-embedding-v3: 1024
+# Ollama nomic-embed-text: 768
+# Ollama mxbai-embed-large: 1024
+EMBEDDING_DIMENSION=1024
 
 # AI 提供商配置
 AI_PROVIDER=dashscope          # 可选值: dashscope, ollama
@@ -843,3 +869,4 @@ ollama pull nomic-embed-text
 | 2026-03-25 | v2.3.0 | 收藏功能重构（用户级别收藏）：<br>- **收藏表新增**：新增 `favorites` 表，存储用户-图片收藏关系，支持多用户独立收藏<br>- **收藏逻辑重构**：收藏状态从图片全局属性改为用户级别，每个用户有独立的收藏列表<br>- **API新增**：新增 `/api/favorites` 接口，获取当前用户收藏列表和数量<br>- **级联删除**：图片彻底删除时自动删除相关收藏记录，用户删除时自动删除其收藏记录<br>- **FavoriteRepository**：新增收藏数据访问层，封装收藏的增删查操作 |
 | 2026-03-25 | v2.4.0 | AI 服务架构重构（多提供商支持）：<br>- **AI Provider 抽象层**：引入 Provider 模式，支持多种 AI 提供商<br>- **Ollama 支持**：新增 Ollama 本地部署支持，可完全离线运行，无 API 费用<br>- **配置切换**：通过 `AI_PROVIDER` 环境变量切换 DashScope 或 Ollama<br>- **Ollama 配置项**：支持配置服务地址、视觉模型（推荐 llava）、嵌入模型（推荐 nomic-embed-text）<br>- **向量维度兼容**：不同嵌入模型支持不同向量维度（DashScope 1024，nomic-embed-text 768）<br>- **代码结构优化**：services/ai/ 目录下按提供商组织代码 |
 | 2026-03-25 | v2.5.0 | 时间显示优化（UTC 转本地时间）：<br>- **时间工具函数**：新增 `client/src/utils/date.js` 工具模块，统一处理时间转换<br>- **UTC 转本地时间**：所有时间字段（创建时间、更新时间、删除时间、有效期）自动转换为本地时间显示<br>- **支持的格式**：自动识别 ISO 格式（带 Z 或时区）和纯 UTC 时间字符串<br>- **日期选择器支持**：有效期选择时自动转换为本地时间，提交时转回 UTC<br>- **涉及页面**：图片库、仪表盘、图片详情、操作日志、回收站、用户管理 |
+| 2026-03-26 | v3.0.0 | 数据库迁移至 PostgreSQL + pgvector：<br>- **数据库迁移**：从 SQLite (sql.js) 迁移到 PostgreSQL<br>- **向量存储优化**：使用 pgvector 扩展替代 JSON 存储，支持原生向量搜索<br>- **索引优化**：使用 HNSW 索引，大幅提升向量搜索性能<br>- **动态维度**：支持通过环境变量配置向量维度，兼容不同 Embedding 模型<br>- **连接池**：使用 PostgreSQL 连接池管理数据库连接<br>- **SQL 语法适配**：所有 SQL 语句适配 PostgreSQL 语法（$1, $2 参数占位符等）<br>- **新增配置项**：PG_HOST, PG_PORT, PG_DATABASE, PG_USER, PG_PASSWORD, EMBEDDING_DIMENSION<br>- **管理接口**：新增 /api/system/vector-dimension 和 /api/system/rebuild-vectors 接口 |

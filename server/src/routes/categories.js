@@ -5,9 +5,9 @@ const { authenticateToken } = require('../middlewares/auth');
 const router = express.Router();
 
 // 获取分类树（公开）
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const categoryTree = CategoryRepository.getTree();
+    const categoryTree = await CategoryRepository.getTree();
 
     res.json({
       success: true,
@@ -39,7 +39,7 @@ router.post('/', async (req, res) => {
 
     // 如果有父分类，检查父分类是否存在
     if (parent_id) {
-      const parent = CategoryRepository.findById(parent_id);
+      const parent = await CategoryRepository.findById(parent_id);
       if (!parent) {
         return res.status(400).json({
           success: false,
@@ -55,9 +55,9 @@ router.post('/', async (req, res) => {
       }
     }
 
-    const category = CategoryRepository.create(name.trim(), parent_id || null);
+    const category = await CategoryRepository.create(name.trim(), parent_id || null);
 
-    LogRepository.create(req.user.id, 'create_category', 'category', category.id, `创建分类: ${name}`, req.ip);
+    await LogRepository.create(req.user.id, 'create_category', 'category', category.id, `创建分类: ${name}`, req.ip);
 
     res.json({
       success: true,
@@ -86,7 +86,7 @@ router.put('/:id', async (req, res) => {
       });
     }
 
-    const category = CategoryRepository.findById(id);
+    const category = await CategoryRepository.findById(id);
 
     if (!category) {
       return res.status(404).json({
@@ -95,9 +95,9 @@ router.put('/:id', async (req, res) => {
       });
     }
 
-    CategoryRepository.update(id, name.trim());
+    await CategoryRepository.update(id, name.trim());
 
-    LogRepository.create(req.user.id, 'update_category', 'category', id, `更新分类名称: ${name}`, req.ip);
+    await LogRepository.create(req.user.id, 'update_category', 'category', id, `更新分类名称: ${name}`, req.ip);
 
     res.json({
       success: true,
@@ -117,7 +117,7 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const category = CategoryRepository.findById(id);
+    const category = await CategoryRepository.findById(id);
     if (!category) {
       return res.status(404).json({
         success: false,
@@ -126,7 +126,7 @@ router.delete('/:id', async (req, res) => {
     }
 
     // 检查是否有子分类
-    const childCount = CategoryRepository.countChildren(id);
+    const childCount = await CategoryRepository.countChildren(id);
     if (childCount > 0) {
       return res.status(400).json({
         success: false,
@@ -135,7 +135,7 @@ router.delete('/:id', async (req, res) => {
     }
 
     // 检查是否有图片使用该分类
-    const imageCount = ImageRepository.countByCategory(id);
+    const imageCount = await ImageRepository.countByCategory(id);
     if (imageCount > 0) {
       return res.status(400).json({
         success: false,
@@ -143,9 +143,9 @@ router.delete('/:id', async (req, res) => {
       });
     }
 
-    CategoryRepository.delete(id);
+    await CategoryRepository.delete(id);
 
-    LogRepository.create(req.user.id, 'delete_category', 'category', id, `删除分类: ${category.name}`, req.ip);
+    await LogRepository.create(req.user.id, 'delete_category', 'category', id, `删除分类: ${category.name}`, req.ip);
 
     res.json({
       success: true,
