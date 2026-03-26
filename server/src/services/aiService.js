@@ -118,9 +118,20 @@ async function isAIAvailable() {
   return provider.isAvailable();
 }
 
+/**
+ * 根据图片生成绘图提示词
+ * @param {string|Buffer} imageInput - 图片文件路径或 Buffer
+ * @returns {Promise<{positivePrompt: string, negativePrompt: string, suggestions: object}>}
+ */
+async function generateImagePrompt(imageInput) {
+  const provider = getProvider();
+  return await provider.generatePrompt(imageInput);
+}
+
 module.exports = {
   processImageWithAI,
   getEmbedding,
   getAIConfig,
-  isAIAvailable
+  isAIAvailable,
+  generateImagePrompt
 };

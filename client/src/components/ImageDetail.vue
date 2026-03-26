@@ -97,6 +97,10 @@
           <a-button type="primary" @click="handleDownload">
             <DownloadOutlined /> 下载
           </a-button>
+          <a-button @click="handleGeneratePrompt" :loading="generatingPrompt">
+            <template #icon><BulbOutlined /></template>
+            生成提示词
+          </a-button>
           <a-button class="reanalyze-btn" :loading="reanalyzing" @click="handleReanalyze" v-if="canReanalyze">
             <template #icon><SyncOutlined /></template>
             重新识别
@@ -104,18 +108,77 @@
         </div>
       </div>
     </div>
+
+    <!-- 提示词弹窗 -->
+    <a-modal
+      v-model:open="promptModalVisible"
+      title="AI 绘图提示词"
+      :footer="null"
+      width="680px"
+      centered
+      class="prompt-modal"
+    >
+      <div class="prompt-wrapper" v-if="promptResult">
+        <div class="prompt-content">
+          <!-- 正向提示词 -->
+          <div class="prompt-section positive">
+            <div class="section-header">
+              <span class="section-icon">✨</span>
+              <span class="section-title">正向提示词</span>
+            </div>
+            <div class="section-body">{{ promptResult.positivePrompt }}</div>
+          </div>
+
+          <!-- 反向提示词 -->
+          <div class="prompt-section negative">
+            <div class="section-header">
+              <span class="section-icon">🚫</span>
+              <span class="section-title">反向提示词</span>
+            </div>
+            <div class="section-body">{{ promptResult.negativePrompt }}</div>
+          </div>
+
+          <!-- 参数建议 -->
+          <div class="prompt-section suggestions">
+            <div class="section-header">
+              <span class="section-icon">⚙️</span>
+              <span class="section-title">参数建议</span>
+            </div>
+            <div class="suggestion-tags">
+              <div class="suggestion-tag">
+                <span class="tag-label">画幅</span>
+                <span class="tag-value">{{ promptResult.suggestions?.aspectRatio || '未指定' }}</span>
+              </div>
+              <div class="suggestion-tag">
+                <span class="tag-label">风格</span>
+                <span class="tag-value">{{ promptResult.suggestions?.style || '未指定' }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 复制按钮 -->
+        <div class="prompt-actions">
+          <a-button type="primary" size="large" block @click="copyAllPrompt">
+            <CopyOutlined /> 一键复制全部
+          </a-button>
+        </div>
+      </div>
+    </a-modal>
   </a-modal>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import {
   HeartOutlined,
   HeartFilled,
   DownloadOutlined,
   DeleteOutlined,
-  SyncOutlined
+  SyncOutlined,
+  BulbOutlined,
+  CopyOutlined
 } from '@ant-design/icons-vue'
 import { imageApi } from '@/api/image'
 import { formatDate } from '@/utils/date'
@@ -150,6 +213,9 @@ const props = defineProps({
 const emit = defineEmits(['update:visible', 'favorite', 'delete', 'reanalyze'])
 
 const reanalyzing = ref(false)
+const generatingPrompt = ref(false)
+const promptModalVisible = ref(false)
+const promptResult = ref(null)
 
 // 解析关键词
 const keywords = computed(() => {
@@ -263,6 +329,41 @@ async function handleReanalyze() {
     message.error('重新识别失败')
   } finally {
     reanalyzing.value = false
+  }
+}
+
+async function handleGeneratePrompt() {
+  if (!props.image) return
+  generatingPrompt.value = true
+  try {
+    const res = await imageApi.generatePrompt(props.image.id)
+    promptResult.value = res.data
+    promptModalVisible.value = true
+  } catch (error) {
+    message.error(error.response?.data?.message || '生成提示词失败')
+  } finally {
+    generatingPrompt.value = false
+  }
+}
+
+// 生成完整的提示词文本
+const fullPromptText = computed(() => {
+  if (!promptResult.value) return ''
+  const { positivePrompt, negativePrompt, suggestions } = promptResult.value
+  let text = `【正向提示词】\n${positivePrompt}\n\n`
+  text += `【反向提示词】\n${negativePrompt}\n\n`
+  text += `【参数建议】\n`
+  text += `画幅比例：${suggestions?.aspectRatio || '未指定'}\n`
+  text += `风格类型：${suggestions?.style || '未指定'}`
+  return text
+})
+
+async function copyAllPrompt() {
+  try {
+    await navigator.clipboard.writeText(fullPromptText.value)
+    message.success('已复制到剪贴板')
+  } catch (error) {
+    message.error('复制失败')
   }
 }
 </script>
@@ -460,5 +561,100 @@ async function handleReanalyze() {
   font-size: 14px;
   font-weight: 600;
   color: #6366f1;
+}
+
+/* 提示词弹窗样式 */
+.prompt-wrapper {
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+}
+
+.prompt-content {
+  padding: 8px 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.prompt-section {
+  margin-bottom: 20px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.prompt-section.positive {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 1px solid #a7f3d0;
+}
+
+.prompt-section.negative {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border: 1px solid #fecaca;
+}
+
+.prompt-section.suggestions {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1px solid #bfdbfe;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.section-icon {
+  font-size: 18px;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.section-body {
+  padding: 12px 16px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #334155;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.suggestion-tags {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.suggestion-tag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.tag-label {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.tag-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.prompt-actions {
+  padding: 16px 0 0;
+  border-top: 1px solid #e2e8f0;
+  background: white;
+  flex-shrink: 0;
 }
 </style>

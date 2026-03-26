@@ -61,5 +61,9 @@ export const imageApi = {
 
   reanalyze(id) {
     return request.post(`/images/${id}/reanalyze`)
+  },
+
+  generatePrompt(id) {
+    return request.post(`/images/${id}/generate-prompt`)
   }
 }

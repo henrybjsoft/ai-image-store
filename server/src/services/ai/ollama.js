@@ -324,6 +324,107 @@ ${categoryList}
   }
 
   /**
+   * 根据图片生成绘图提示词
+   */
+  async generatePrompt(imageInput) {
+    const defaultResult = {
+      positivePrompt: '',
+      negativePrompt: '',
+      suggestions: {
+        aspectRatio: '1:1',
+        style: '通用',
+        recommendedModel: 'SDXL / Midjourney'
+      }
+    };
+
+    try {
+      const imageBase64 = this._getImageBase64(imageInput);
+
+      const prompt = `你是一个专业的AI绘图提示词专家。请仔细分析这张图片，生成非常详细的、可用于 Stable Diffusion、Midjourney 等 AI 绘图工具的中文提示词。
+
+请从以下维度详细分析图片，并将分析结果融入提示词中：
+
+【主体描述】
+- 核心主体是什么（人物/动物/物品/场景）
+- 主体的具体外观特征（如果是人物：年龄、性别、发型、发色、瞳色、面部特征、表情、姿态、动作等）
+- 服装穿着（颜色、款式、材质、配饰等）
+- 如果是场景：建筑风格、自然环境、天气状况等
+
+【构图与视角】
+- 镜头角度（俯视/仰视/平视/侧视）
+- 景别（特写/半身/全身/远景/全景）
+- 构图方式（居中/三分/对称/引导线等）
+- 景深效果（背景虚化/清晰背景）
+
+【光影效果】
+- 光源类型（自然光/人工光/混合光）
+- 光线方向和强度（侧光/逆光/顶光/柔光/硬光）
+- 光影氛围（温暖/冷调/戏剧性/柔和）
+- 特殊光效（丁达尔效应/体积光/光晕/反光）
+
+【色彩特征】
+- 主色调和配色方案
+- 色彩饱和度和对比度
+- 整体色彩氛围
+
+【艺术风格】
+- 整体风格定位（写实摄影/插画/动漫/油画/水彩/赛博朋克等）
+- 艺术技法特点
+- 参考艺术家或风格流派
+
+【画质与细节】
+- 清晰度和细节程度
+- 分辨率要求
+- 特殊质感表现
+
+请严格按照以下JSON格式返回（所有提示词必须使用中文，正向提示词要非常详细，包含上述多个维度的描述）：
+{
+  "positivePrompt": "详细的多维度正向提示词。示例：一位年轻女性，约20岁，亚洲面孔，精致的面部特征，水汪汪的大眼睛，淡棕色瞳孔，淡妆，微微笑着的表情，黑色长发，发梢微卷，随风轻扬，身穿米白色针织毛衣，宽松版型，柔软质地，配戴细银项链，站在秋天的银杏大道上，金黄色的银杏叶铺满地面，阳光透过树叶洒下斑驳光影，温暖的午后光线，柔光效果，丁达尔效应，景深虚化背景，居中构图，半身特写，写实摄影风格，高画质，8K分辨率，细节丰富，电影级光影，温馨治愈的氛围",
+  "negativePrompt": "反向提示词，描述你不希望出现的元素。示例：模糊，低质量，扭曲，变形，多余的手指，肢体畸形，文字，水印，低分辨率，噪点，过曝，欠曝",
+  "suggestions": {
+    "aspectRatio": "推荐的画幅比例",
+    "style": "推荐的风格类型",
+    "recommendedModel": "推荐的AI模型"
+  }
+}`;
+
+      console.log('[Ollama] 生成绘图提示词...');
+      const response = await this._callVisionAPI(imageBase64, prompt);
+
+      if (response.error) {
+        console.error('[Ollama] API 错误:', response.error);
+        throw new Error(response.error);
+      }
+
+      const content = response.response || '';
+
+      // 解析 JSON
+      const jsonMatch = content.match(/\{[\s\S]*"positivePrompt"[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          const result = JSON.parse(jsonMatch[0]);
+          return {
+            positivePrompt: result.positivePrompt || defaultResult.positivePrompt,
+            negativePrompt: result.negativePrompt || defaultResult.negativePrompt,
+            suggestions: {
+              aspectRatio: result.suggestions?.aspectRatio || defaultResult.suggestions.aspectRatio,
+              style: result.suggestions?.style || defaultResult.suggestions.style,
+              recommendedModel: result.suggestions?.recommendedModel || defaultResult.suggestions.recommendedModel
+            }
+          };
+        } catch (e) {
+          console.error('[Ollama] JSON解析失败:', e.message);
+        }
+      }
+
+      throw new Error('无法解析提示词结果');
+    } catch (error) {
+      console.error('[Ollama] 生成提示词失败:', error.message);
+      throw error;
+    }
+  }
+
+  /**
    * 获取已安装的模型列表
    */
   async listModels() {

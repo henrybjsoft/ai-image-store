@@ -49,6 +49,15 @@ class AIProvider {
   getEmbeddingDimension() {
     throw new Error('getEmbeddingDimension() must be implemented by subclass');
   }
+
+  /**
+   * 根据图片生成绘图提示词
+   * @param {string|Buffer} imageInput - 图片文件路径或 Buffer
+   * @returns {Promise<{positivePrompt: string, negativePrompt: string, suggestions: {aspectRatio: string, style: string, recommendedModel: string}}>}
+   */
+  async generatePrompt(imageInput) {
+    throw new Error('generatePrompt() must be implemented by subclass');
+  }
 }
 
 module.exports = AIProvider;

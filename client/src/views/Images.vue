@@ -310,7 +310,7 @@ async function loadImages() {
     }
 
     images.value = res.data?.list || []
-    pagination.total = res.data?.total || 0
+    pagination.total = Number(res.data?.total) || 0
   } catch (error) {
     console.error('加载图片失败:', error)
   } finally {

@@ -7,7 +7,7 @@ const { v4: uuidv4 } = require('uuid');
 const archiver = require('archiver');
 const { ImageRepository, TagRepository, CategoryRepository, LogRepository, UserRepository, FavoriteRepository } = require('../repository');
 const { authenticateToken, requireAdmin } = require('../middlewares/auth');
-const { processImageWithAI, getEmbedding } = require('../services/aiService');
+const { processImageWithAI, getEmbedding, generateImagePrompt } = require('../services/aiService');
 const { addImageVector, removeImageVector, buildEmbeddingText } = require('../services/vectorService');
 const { getStorage, isLocalStorage } = require('../services/storage');
 
@@ -995,6 +995,51 @@ router.post('/:id/reanalyze', authenticateToken, requireAdmin, async (req, res) 
     res.status(500).json({
       success: false,
       message: '重新识别失败'
+    });
+  }
+});
+
+// 生成绘图提示词
+router.post('/:id/generate-prompt', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const image = await ImageRepository.findById(id);
+    if (!image || image.is_deleted) {
+      return res.status(404).json({
+        success: false,
+        message: '图片不存在'
+      });
+    }
+
+    const storage = getStorage();
+
+    // 检查文件是否存在
+    const exists = await storage.exists(image.file_path);
+    if (!exists) {
+      return res.status(404).json({
+        success: false,
+        message: '图片文件不存在'
+      });
+    }
+
+    // 获取图片 Buffer
+    const imageBuffer = await storage.getBuffer(image.file_path);
+
+    // 调用 AI 生成提示词
+    const result = await generateImagePrompt(imageBuffer);
+
+    await LogRepository.create(req.user.id, 'generate_prompt', 'image', id, `生成绘图提示词: ${image.original_name}`, req.ip);
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('生成提示词错误:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || '生成提示词失败'
     });
   }
 });
