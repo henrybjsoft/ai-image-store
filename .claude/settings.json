@@ -37,7 +37,8 @@
       "Bash(taskkill //F //PID 50836)",
       "Bash(taskkill /F /FI \"WINDOWTITLE eq *node*\")",
       "Bash(pkill -f \"node.*app.js\")",
-      "Bash(powershell -Command \"Stop-Process -Id 30264,50436,27940,29796,43688 -Force -ErrorAction SilentlyContinue\")"
+      "Bash(powershell -Command \"Stop-Process -Id 30264,50436,27940,29796,43688 -Force -ErrorAction SilentlyContinue\")",
+      "Bash(powershell \"Stop-Process -Id 40776 -Force\")"
     ],
     "additionalDirectories": [
       "d:\\VSCODE\\图片素材公式系统\\client\\src\\views"
