@@ -1,11 +1,24 @@
 /**
  * PostgreSQL 数据库连接模块
  * 使用 pg 库连接 PostgreSQL，支持 pgvector 扩展
+ *
+ * 时间处理规则：
+ * 1. 数据库存储本地时间，不做 UTC 转换
+ * 2. 连接时设置时区（通过环境变量 TZ 配置，默认 Asia/Shanghai），CURRENT_TIMESTAMP 返回本地时间
+ * 3. pg 驱动返回字符串而不是 Date 对象，避免 JSON 序列化时自动转 UTC
  */
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
 const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
+
+// 配置 pg 驱动返回字符串而不是 Date 对象
+// OID 1114 = timestamp, 1184 = timestamptz
+types.setTypeParser(1114, (val) => val);
+types.setTypeParser(1184, (val) => val);
+
+// 时区配置，可通过环境变量 TZ 设置，默认东8区
+const timezone = process.env.TZ || 'Asia/Shanghai';
 
 // 连接池配置
 const pool = new Pool({
@@ -14,6 +27,11 @@ const pool = new Pool({
   database: process.env.PG_DATABASE || 'image_asset',
   user: process.env.PG_USER || 'postgres',
   password: process.env.PG_PASSWORD || 'postgres'
+});
+
+// 设置时区，让 CURRENT_TIMESTAMP 返回本地时间
+pool.on('connect', async (client) => {
+  await client.query(`SET TIME ZONE '${timezone}'`);
 });
 
 // 向量维度（默认 1024，可通过环境变量或 AI Provider 配置）
