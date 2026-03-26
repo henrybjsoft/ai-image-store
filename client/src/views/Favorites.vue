@@ -96,10 +96,10 @@ async function loadImages() {
 }
 
 function getImageUrl(image, full = false) {
-  if (!full && image.thumbnail_path) {
-    return `/uploads/${image.thumbnail_path}`
+  if (!full && image.thumbnail_url) {
+    return image.thumbnail_url
   }
-  return `/uploads/${image.file_path}`
+  return image.file_url
 }
 
 function formatSize(bytes) {

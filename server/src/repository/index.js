@@ -4,6 +4,36 @@
  */
 
 const { getDatabase, getEmbeddingDimension, setEmbeddingDimension, createVectorsTable, getVectorsTableDimension } = require('../models/database-pg');
+const { getStorage } = require('../services/storage');
+
+/**
+ * 为图片对象添加完整 URL 字段
+ */
+function enrichImageUrls(image) {
+  if (!image) return image;
+
+  const storage = getStorage();
+  image.file_url = storage.getUrl(image.file_path);
+  if (image.thumbnail_path) {
+    image.thumbnail_url = storage.getUrl(image.thumbnail_path);
+  } else {
+    image.thumbnail_url = image.file_url;
+  }
+  return image;
+}
+
+/**
+ * 为图片数组添加完整 URL 字段
+ */
+function enrichImagesUrls(images) {
+  if (!images) return images;
+  if (Array.isArray(images)) {
+    images.forEach(img => enrichImageUrls(img));
+  } else {
+    enrichImageUrls(images);
+  }
+  return images;
+}
 
 // ==================== 用户相关操作 ====================
 
@@ -98,19 +128,21 @@ const ImageRepository = {
   // 根据ID获取图片
   async findById(id) {
     const db = getDatabase();
-    return db.prepare('SELECT * FROM images WHERE id = $1').get(id);
+    const image = db.prepare('SELECT * FROM images WHERE id = $1').get(id);
+    return enrichImageUrls(image);
   },
 
   // 根据ID获取图片详情
   async findByIdWithDetails(id) {
     const db = getDatabase();
-    return db.prepare(`
+    const image = db.prepare(`
       SELECT i.*, c.name as category_name, u.username as uploader_name
       FROM images i
       LEFT JOIN categories c ON i.category_id = c.id
       LEFT JOIN users u ON i.uploaded_by = u.id
       WHERE i.id = $1
     `).get(id);
+    return enrichImageUrls(image);
   },
 
   // 获取图片列表（带筛选和分页）
@@ -166,9 +198,10 @@ const ImageRepository = {
 
     const images = await db.prepare(sql).all(...params);
 
-    // 获取每张图片的标签
+    // 获取每张图片的标签并添加完整URL
     for (const image of images) {
       image.tags = await this.getTags(image.id);
+      enrichImageUrls(image);
     }
 
     return { list: images, total, page: parseInt(page), pageSize: parseInt(pageSize) };
@@ -269,7 +302,8 @@ const ImageRepository = {
   // 获取所有已删除图片
   async findDeleted() {
     const db = getDatabase();
-    return db.prepare('SELECT * FROM images WHERE is_deleted = 1').all();
+    const images = db.prepare('SELECT * FROM images WHERE is_deleted = 1').all();
+    return enrichImagesUrls(images);
   },
 
   // 清空回收站
@@ -299,7 +333,8 @@ const ImageRepository = {
     if (!ids || ids.length === 0) return [];
     const db = getDatabase();
     const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
-    return db.prepare(`SELECT * FROM images WHERE id IN (${placeholders})`).all(...ids);
+    const images = db.prepare(`SELECT * FROM images WHERE id IN (${placeholders})`).all(...ids);
+    return enrichImagesUrls(images);
   },
 
   // 根据ID列表获取图片详情
@@ -307,13 +342,14 @@ const ImageRepository = {
     if (!ids || ids.length === 0) return [];
     const db = getDatabase();
     const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
-    return db.prepare(`
+    const images = db.prepare(`
       SELECT i.*, c.name as category_name, u.username as uploader_name
       FROM images i
       LEFT JOIN categories c ON i.category_id = c.id
       LEFT JOIN users u ON i.uploaded_by = u.id
       WHERE i.id IN (${placeholders})
     `).all(...ids);
+    return enrichImagesUrls(images);
   },
 
   // 获取图片的标签
@@ -662,6 +698,7 @@ const SearchRepository = {
       LIMIT $2 OFFSET $3
     `).all(likeKeyword, parseInt(pageSize), offset);
 
+    enrichImagesUrls(images);
     return { list: images, total, page: parseInt(page), pageSize: parseInt(pageSize) };
   },
 
@@ -684,7 +721,7 @@ const SearchRepository = {
       return (similarityMap.get(a.id) || Infinity) - (similarityMap.get(b.id) || Infinity);
     });
 
-    return images;
+    return enrichImagesUrls(images);
   }
 };
 
@@ -933,6 +970,7 @@ const FavoriteRepository = {
       `).all(image.id);
     }
 
+    enrichImagesUrls(images);
     return { list: images, total, page: parseInt(page), pageSize: parseInt(pageSize) };
   },
 

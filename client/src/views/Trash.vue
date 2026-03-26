@@ -73,10 +73,7 @@ async function loadImages() {
 }
 
 function getImageUrl(image) {
-  if (image.thumbnail_path) {
-    return `/uploads/${image.thumbnail_path}`
-  }
-  return `/uploads/${image.file_path}`
+  return image.thumbnail_url || image.file_url
 }
 
 async function handleRestore(ids) {

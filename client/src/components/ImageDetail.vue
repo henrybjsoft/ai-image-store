@@ -179,10 +179,10 @@ const canReanalyze = computed(() => {
 
 function getImageUrl(large = false) {
   if (!props.image) return ''
-  if (!large && props.image.thumbnail_path) {
-    return `/uploads/${props.image.thumbnail_path}`
+  if (!large && props.image.thumbnail_url) {
+    return props.image.thumbnail_url
   }
-  return `/uploads/${props.image.file_path}`
+  return props.image.file_url
 }
 
 function formatSize(bytes) {

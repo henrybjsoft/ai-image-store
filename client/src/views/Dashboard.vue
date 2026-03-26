@@ -206,10 +206,10 @@ async function loadData() {
 }
 
 function getImageUrl(image, large = false) {
-  if (!large && image.thumbnail_path) {
-    return `/uploads/${image.thumbnail_path}`
+  if (!large && image.thumbnail_url) {
+    return image.thumbnail_url
   }
-  return `/uploads/${image.file_path}`
+  return image.file_url
 }
 
 function showPreview(image) {
