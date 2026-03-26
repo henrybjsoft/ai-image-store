@@ -8,11 +8,12 @@ class AIProvider {
   }
 
   /**
-   * 分析图片，返回描述、关键词、提取的文字
+   * 分析图片，返回描述、关键词、提取的文字、分类名称
    * @param {string|Buffer} imageInput - 图片文件路径或 Buffer
-   * @returns {Promise<{description: string, keywords: string[], extractedText: string}>}
+   * @param {Array} categories - 分类列表，格式：[{id, name, parent_id}, ...]
+   * @returns {Promise<{description: string, keywords: string[], extractedText: string, categoryName: string}>}
    */
-  async analyzeImage(imageInput) {
+  async analyzeImage(imageInput, categories = []) {
     throw new Error('analyzeImage() must be implemented by subclass');
   }
 

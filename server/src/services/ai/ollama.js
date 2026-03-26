@@ -97,17 +97,44 @@ class OllamaProvider extends AIProvider {
   }
 
   /**
+   * 构建分类列表文本
+   */
+  _buildCategoryList(categories) {
+    if (!categories || categories.length === 0) {
+      return '其他';
+    }
+
+    // 构建分类树结构
+    const rootCategories = categories.filter(c => !c.parent_id);
+    const lines = [];
+
+    for (const root of rootCategories) {
+      const children = categories.filter(c => c.parent_id === root.id);
+      if (children.length > 0) {
+        lines.push(`- ${root.name}（包含：${children.map(c => c.name).join('、')}）`);
+      } else {
+        lines.push(`- ${root.name}`);
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  /**
    * 分析图片
    */
-  async analyzeImage(imagePath) {
+  async analyzeImage(imagePath, categories = []) {
     const defaultResult = {
       description: '图片素材',
       keywords: ['图片', '素材'],
-      extractedText: ''
+      extractedText: '',
+      categoryName: '其他'
     };
 
     try {
       const imageBase64 = this._getImageBase64(imagePath);
+      const categoryList = this._buildCategoryList(categories);
+
       const prompt = `请详细分析这张图片，提供以下信息：
 
 1. 详细描述：请用2-4句话详细描述图片的内容，包括：
@@ -129,8 +156,11 @@ class OllamaProvider extends AIProvider {
    - 水印、logo中的文字
    如果图片中没有文字，请返回空字符串
 
+4. 分类：请从以下分类中选择最合适的一个（只输出分类名称，不要输出父分类）：
+${categoryList}
+
 请严格按照以下JSON格式返回，不要包含其他任何文字：
-{"description": "详细描述内容", "keywords": ["关键词1", "关键词2", "关键词3"], "text": "图片中的文字内容，没有则为空字符串"}`;
+{"description": "详细描述内容", "keywords": ["关键词1", "关键词2", "关键词3"], "text": "图片中的文字内容，没有则为空字符串", "category": "分类名称"}`;
 
       console.log('[Ollama] 调用视觉模型分析图片...');
       const response = await this._callVisionAPI(imageBase64, prompt);
@@ -146,6 +176,7 @@ class OllamaProvider extends AIProvider {
       let description = '';
       let keywords = [];
       let extractedText = '';
+      let categoryName = '其他';
 
       const jsonMatch = content.match(/\{[\s\S]*"description"[\s\S]*\}/);
       if (jsonMatch) {
@@ -154,6 +185,7 @@ class OllamaProvider extends AIProvider {
           description = jsonResult.description || '';
           keywords = jsonResult.keywords || [];
           extractedText = jsonResult.text || '';
+          categoryName = jsonResult.category || jsonResult.categoryName || '其他';
         } catch (e) {
           console.log('[Ollama] JSON解析失败，尝试其他格式');
         }
@@ -161,16 +193,24 @@ class OllamaProvider extends AIProvider {
 
       // 如果 JSON 解析失败，尝试原有格式
       if (!description) {
-        const descMatch = content.match(/描述[：:]\s*(.+?)(?=关键词|$)/s);
+        const descMatch = content.match(/描述[：:]\s*(.+?)(?=关键词|分类|$)/s);
         if (descMatch) {
           description = descMatch[1].trim();
         }
       }
 
       if (keywords.length === 0) {
-        const keywordsMatch = content.match(/关键词[：:]\s*(.+?)(?=$)/s);
+        const keywordsMatch = content.match(/关键词[：:]\s*(.+?)(?=分类|$)/s);
         if (keywordsMatch) {
           keywords = keywordsMatch[1].split(/[,，、\s]+/).filter(k => k.trim()).map(k => k.trim());
+        }
+      }
+
+      // 提取分类
+      if (categoryName === '其他') {
+        const categoryMatch = content.match(/分类[：:]\s*(.+?)(?=\n|$)/s);
+        if (categoryMatch) {
+          categoryName = categoryMatch[1].trim();
         }
       }
 
@@ -183,7 +223,7 @@ class OllamaProvider extends AIProvider {
         keywords = ['图片', '素材'];
       }
 
-      return { description, keywords, extractedText };
+      return { description, keywords, extractedText, categoryName };
     } catch (error) {
       console.error('[Ollama] 图片分析失败:', error.message);
       return defaultResult;
