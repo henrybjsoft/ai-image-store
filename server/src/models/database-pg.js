@@ -193,8 +193,9 @@ async function createVectorsTable(dimension) {
  */
 async function getVectorsTableDimension() {
   try {
+    // 使用 format_type 获取完整的类型名称，如 "vector(1024)"
     const result = await pool.query(`
-      SELECT a.atttypmod
+      SELECT pg_catalog.format_type(a.atttypid, a.atttypmod) as full_type
       FROM pg_attribute a
       JOIN pg_class c ON a.attrelid = c.oid
       JOIN pg_namespace n ON c.relnamespace = n.oid
@@ -204,19 +205,11 @@ async function getVectorsTableDimension() {
     `);
 
     if (result.rows.length > 0) {
-      // atttypmod 包含维度信息，格式为 varattrib
-      // 对于 vector(n)，我们需要查询维度
-      const dimResult = await pool.query(`
-        SELECT
-          (SELECT regexp_matches(t.typname, 'vector\\(([0-9]+)\\')))[1]::int as dimension
-        FROM pg_attribute a
-        JOIN pg_type t ON a.atttypid = t.oid
-        JOIN pg_class c ON a.attrelid = c.oid
-        WHERE c.relname = 'vectors' AND a.attname = 'embedding'
-      `);
-
-      if (dimResult.rows.length > 0 && dimResult.rows[0].dimension) {
-        return dimResult.rows[0].dimension;
+      // full_type 格式为 "vector(1024)"
+      const fullType = result.rows[0].full_type;
+      const match = fullType.match(/vector\((\d+)\)/);
+      if (match) {
+        return parseInt(match[1]);
       }
     }
     return null;
