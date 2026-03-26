@@ -5,6 +5,15 @@
       <p>查看系统配置和统计数据</p>
     </div>
 
+    <!-- 操作区域 -->
+    <div class="action-section">
+      <a-button type="primary" :loading="rebuilding" @click="confirmRebuild">
+        <template #icon><SyncOutlined /></template>
+        重建所有向量
+      </a-button>
+      <span class="action-hint">重新生成所有图片的向量数据</span>
+    </div>
+
     <!-- 统计概览 -->
     <div class="stats-overview">
       <div class="stat-card">
@@ -181,12 +190,45 @@
         </template>
       </a-table>
     </div>
+
+    <!-- 重建向量进度弹窗 -->
+    <a-modal
+      v-model:open="rebuildModalVisible"
+      title="重建向量进度"
+      :closable="!rebuilding"
+      :maskClosable="false"
+      :footer="null"
+      width="500px"
+      centered
+    >
+      <div class="rebuild-progress">
+        <a-progress
+          :percent="rebuildProgress.progress"
+          :status="rebuildStatus"
+        />
+        <div class="progress-info">
+          <span>{{ rebuildProgress.message }}</span>
+          <span v-if="rebuildProgress.total > 0">
+            {{ rebuildProgress.current }} / {{ rebuildProgress.total }}
+          </span>
+        </div>
+        <div class="progress-actions" v-if="rebuilding">
+          <a-button danger @click="stopRebuild">
+            停止
+          </a-button>
+        </div>
+        <div class="progress-result" v-else-if="rebuildResult">
+          <p>成功: {{ rebuildResult.success }}</p>
+          <p>失败: {{ rebuildResult.failed }}</p>
+        </div>
+      </div>
+    </a-modal>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { message } from 'ant-design-vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { message, Modal } from 'ant-design-vue'
 import {
   PictureOutlined,
   DatabaseOutlined,
@@ -195,7 +237,8 @@ import {
   CloudServerOutlined,
   LockOutlined,
   UploadOutlined,
-  RobotOutlined
+  RobotOutlined,
+  SyncOutlined
 } from '@ant-design/icons-vue'
 import { systemApi } from '@/api/system'
 
@@ -211,6 +254,23 @@ const stats = ref({
 })
 const ranking = ref([])
 
+// 重建向量相关
+const rebuilding = ref(false)
+const rebuildModalVisible = ref(false)
+const rebuildProgress = ref({
+  progress: 0,
+  current: 0,
+  total: 0,
+  message: ''
+})
+const rebuildResult = ref(null)
+let eventSource = null
+
+const rebuildStatus = computed(() => {
+  if (rebuildProgress.value.progress >= 100) return 'success'
+  return 'active'
+})
+
 const columns = [
   { title: '排名', key: 'rank', width: 60 },
   { title: '用户名', key: 'name' },
@@ -221,6 +281,12 @@ const columns = [
 
 onMounted(async () => {
   await loadData()
+})
+
+onUnmounted(() => {
+  if (eventSource) {
+    eventSource.close()
+  }
 })
 
 async function loadData() {
@@ -241,11 +307,117 @@ async function loadData() {
   }
 }
 
+function confirmRebuild() {
+  Modal.confirm({
+    title: '确认重建向量',
+    content: '将为系统中所有图片重新生成向量数据，此操作可能需要较长时间。确定要继续吗？',
+    okText: '确定',
+    cancelText: '取消',
+    onOk() {
+      startRebuild()
+    }
+  })
+}
+
+async function startRebuild() {
+  rebuilding.value = true
+  rebuildModalVisible.value = true
+  rebuildProgress.value = { progress: 0, current: 0, total: 0, message: '初始化...' }
+  rebuildResult.value = null
+
+  // 获取 token
+  const token = localStorage.getItem('token')
+
+  // 创建 EventSource
+  const url = `${import.meta.env.VITE_API_URL || ''}/api/system/rebuild-all-vectors`
+  eventSource = new EventSource(`${url}?token=${token}`, { withCredentials: true })
+
+  // 由于 EventSource 不支持自定义 header，使用 fetch + ReadableStream
+  eventSource.close()
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'text/event-stream'
+      }
+    })
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      const text = decoder.decode(value)
+      const lines = text.split('\n')
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6))
+            handleRebuildEvent(data)
+          } catch (e) {
+            // 忽略解析错误
+          }
+        }
+      }
+    }
+  } catch (error) {
+    message.error('重建向量失败: ' + error.message)
+    rebuilding.value = false
+  }
+}
+
+function handleRebuildEvent(data) {
+  switch (data.type) {
+    case 'start':
+      rebuildProgress.value.message = data.message
+      break
+    case 'info':
+      rebuildProgress.value.message = data.message
+      break
+    case 'progress':
+      rebuildProgress.value.progress = data.progress
+      rebuildProgress.value.current = data.current
+      rebuildProgress.value.total = data.total
+      rebuildProgress.value.message = `处理中 ${data.current}/${data.total}`
+      break
+    case 'done':
+      rebuildProgress.value.progress = 100
+      rebuildProgress.value.message = data.message
+      rebuildResult.value = { success: data.success, failed: data.failed }
+      rebuilding.value = false
+      // 刷新统计数据
+      loadData()
+      break
+    case 'stopped':
+      rebuildProgress.value.message = data.message
+      rebuilding.value = false
+      break
+    case 'error':
+      message.error(data.message || data.error)
+      rebuilding.value = false
+      break
+  }
+}
+
+async function stopRebuild() {
+  try {
+    await systemApi.stopRebuild()
+    message.info('已发送停止信号')
+  } catch (error) {
+    message.error('停止失败')
+  }
+}
+
 function formatBytes(bytes) {
   if (!bytes || bytes === 0) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   let i = 0
-  let size = bytes
+  let size = Number(bytes)
   while (size >= 1024 && i < units.length - 1) {
     size /= 1024
     i++
@@ -405,6 +577,54 @@ function formatBytes(bytes) {
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 12px;
+}
+
+/* 操作区域 */
+.action-section {
+  background: white;
+  border-radius: 16px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.action-hint {
+  color: #64748b;
+  font-size: 13px;
+}
+
+/* 重建进度 */
+.rebuild-progress {
+  padding: 16px 0;
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.progress-actions {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.progress-result {
+  margin-top: 16px;
+  padding: 12px;
+  background: #f0f9ff;
+  border-radius: 8px;
+}
+
+.progress-result p {
+  margin: 4px 0;
+  font-size: 13px;
+  color: #1e293b;
 }
 
 /* 排名区域 */

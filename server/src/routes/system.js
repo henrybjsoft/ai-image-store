@@ -1,9 +1,21 @@
 const express = require('express');
 const { authenticateToken, requireAdmin } = require('../middlewares/auth');
-const { StatsRepository, getEmbeddingDimension, setEmbeddingDimension, createVectorsTable, getVectorsTableDimension } = require('../repository');
-const { getAIConfig, getProvider } = require('../services/aiService');
+const { StatsRepository, getEmbeddingDimension, setEmbeddingDimension, createVectorsTable, getVectorsTableDimension, ImageRepository } = require('../repository');
+const { getAIConfig, getEmbedding } = require('../services/aiService');
+const { addImageVector, buildEmbeddingText } = require('../services/vectorService');
+const { getStorage } = require('../services/storage');
 
 const router = express.Router();
+
+// 重建向量任务状态
+let rebuildTask = {
+  running: false,
+  stopped: false,
+  progress: 0,
+  total: 0,
+  current: 0,
+  message: ''
+};
 
 // 获取系统配置信息
 router.get('/config', authenticateToken, requireAdmin, (req, res) => {
@@ -169,3 +181,166 @@ router.get('/db-status', authenticateToken, requireAdmin, async (req, res) => {
 });
 
 module.exports = router;
+
+// 重建向量进度查询
+router.get('/rebuild-progress', authenticateToken, requireAdmin, (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      running: rebuildTask.running,
+      progress: rebuildTask.progress,
+      total: rebuildTask.total,
+      current: rebuildTask.current,
+      message: rebuildTask.message
+    }
+  });
+});
+
+// 停止重建向量任务
+router.post('/stop-rebuild', authenticateToken, requireAdmin, (req, res) => {
+  if (rebuildTask.running) {
+    rebuildTask.stopped = true;
+    res.json({
+      success: true,
+      message: '已发送停止信号'
+    });
+  } else {
+    res.json({
+      success: false,
+      message: '没有正在运行的重建任务'
+    });
+  }
+});
+
+// 重建所有图片向量（SSE）
+router.post('/rebuild-all-vectors', authenticateToken, requireAdmin, async (req, res) => {
+  // 检查是否已有任务在运行
+  if (rebuildTask.running) {
+    return res.status(400).json({
+      success: false,
+      message: '已有重建任务在运行中'
+    });
+  }
+
+  // 设置 SSE 响应头
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+
+  const sendProgress = (data) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  try {
+    // 初始化任务状态
+    rebuildTask = {
+      running: true,
+      stopped: false,
+      progress: 0,
+      total: 0,
+      current: 0,
+      message: '正在初始化...'
+    };
+
+    sendProgress({ type: 'start', message: '开始重建向量...' });
+
+    // 获取所有图片
+    const images = await ImageRepository.findAllDescriptions();
+    rebuildTask.total = images.length;
+
+    sendProgress({
+      type: 'info',
+      message: `找到 ${images.length} 张图片需要重建向量`
+    });
+
+    if (images.length === 0) {
+      rebuildTask.running = false;
+      sendProgress({ type: 'done', message: '没有需要处理的图片' });
+      res.end();
+      return;
+    }
+
+    const storage = getStorage();
+    let processed = 0;
+    let success = 0;
+    let failed = 0;
+
+    for (const image of images) {
+      // 检查是否被停止
+      if (rebuildTask.stopped) {
+        rebuildTask.running = false;
+        sendProgress({
+          type: 'stopped',
+          message: `任务已停止，已处理 ${processed}/${images.length}，成功 ${success}，失败 ${failed}`
+        });
+        res.end();
+        return;
+      }
+
+      processed++;
+      rebuildTask.current = processed;
+      rebuildTask.progress = Math.round((processed / images.length) * 100);
+      rebuildTask.message = `处理中 ${processed}/${images.length}`;
+
+      sendProgress({
+        type: 'progress',
+        current: processed,
+        total: images.length,
+        progress: rebuildTask.progress,
+        imageId: image.id
+      });
+
+      try {
+        // 获取图片文件
+        const fullImage = await ImageRepository.findById(image.id);
+        if (!fullImage) {
+          failed++;
+          sendProgress({ type: 'skip', imageId: image.id, reason: '图片不存在' });
+          continue;
+        }
+
+        // 检查文件是否存在
+        const exists = await storage.exists(fullImage.file_path);
+        if (!exists) {
+          failed++;
+          sendProgress({ type: 'skip', imageId: image.id, reason: '文件不存在' });
+          continue;
+        }
+
+        // 构建向量化文本
+        const text = buildEmbeddingText(image.description, image.extracted_text);
+
+        // 获取向量
+        const embedding = await getEmbedding(text);
+
+        // 保存向量
+        await addImageVector(image.id, embedding, fullImage.uploaded_by);
+
+        success++;
+      } catch (error) {
+        failed++;
+        sendProgress({ type: 'error', imageId: image.id, error: error.message });
+      }
+
+      // 短暂延迟，避免过载
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    rebuildTask.running = false;
+    sendProgress({
+      type: 'done',
+      message: `重建完成，成功 ${success}，失败 ${failed}`,
+      success,
+      failed,
+      total: images.length
+    });
+
+    res.end();
+  } catch (error) {
+    rebuildTask.running = false;
+    console.error('重建向量失败:', error);
+    sendProgress({ type: 'error', message: error.message });
+    res.end();
+  }
+});
