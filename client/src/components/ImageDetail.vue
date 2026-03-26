@@ -359,11 +359,43 @@ const fullPromptText = computed(() => {
 })
 
 async function copyAllPrompt() {
+  const text = fullPromptText.value
+  if (!text) {
+    message.error('没有可复制的内容')
+    return
+  }
+
   try {
-    await navigator.clipboard.writeText(fullPromptText.value)
-    message.success('已复制到剪贴板')
-  } catch (error) {
-    message.error('复制失败')
+    // 优先使用 Clipboard API
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text)
+      message.success('已复制到剪贴板')
+      return
+    }
+  } catch (e) {
+    console.warn('Clipboard API 失败，尝试备用方法', e)
+  }
+
+  // 备用方案：使用 textarea + execCommand
+  try {
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.style.position = 'fixed'
+    textarea.style.left = '-9999px'
+    textarea.style.top = '-9999px'
+    document.body.appendChild(textarea)
+    textarea.focus()
+    textarea.select()
+    const success = document.execCommand('copy')
+    document.body.removeChild(textarea)
+    if (success) {
+      message.success('已复制到剪贴板')
+    } else {
+      message.error('复制失败')
+    }
+  } catch (e) {
+    console.error('复制失败', e)
+    message.error('复制失败，请手动选择复制')
   }
 }
 </script>
