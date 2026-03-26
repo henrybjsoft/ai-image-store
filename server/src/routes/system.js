@@ -262,50 +262,54 @@ router.post('/rebuild-all-vectors', authenticateToken, requireAdmin, async (req,
     }
 
     const storage = getStorage();
+    const CONCURRENCY = parseInt(process.env.UPLOAD_CONCURRENCY) || 5;
     let processed = 0;
     let success = 0;
     let failed = 0;
 
-    for (const image of images) {
-      // 检查是否被停止
-      if (rebuildTask.stopped) {
-        rebuildTask.running = false;
-        sendProgress({
-          type: 'stopped',
-          message: `任务已停止，已处理 ${processed}/${images.length}，成功 ${success}，失败 ${failed}`
-        });
-        res.end();
-        return;
+    // 并发控制器
+    class ConcurrencyLimit {
+      constructor(limit) {
+        this.limit = limit;
+        this.running = 0;
+        this.queue = [];
       }
 
-      processed++;
-      rebuildTask.current = processed;
-      rebuildTask.progress = Math.round((processed / images.length) * 100);
-      rebuildTask.message = `处理中 ${processed}/${images.length}`;
+      async run(fn) {
+        while (this.running >= this.limit) {
+          await new Promise(resolve => this.queue.push(resolve));
+        }
+        this.running++;
+        try {
+          return await fn();
+        } finally {
+          this.running--;
+          const next = this.queue.shift();
+          if (next) next();
+        }
+      }
+    }
 
-      sendProgress({
-        type: 'progress',
-        current: processed,
-        total: images.length,
-        progress: rebuildTask.progress,
-        imageId: image.id
-      });
+    const limiter = new ConcurrencyLimit(CONCURRENCY);
+
+    // 处理单个图片的函数
+    async function processImage(image) {
+      // 检查是否被停止
+      if (rebuildTask.stopped) {
+        return { stopped: true };
+      }
 
       try {
         // 获取图片文件
         const fullImage = await ImageRepository.findById(image.id);
         if (!fullImage) {
-          failed++;
-          sendProgress({ type: 'skip', imageId: image.id, reason: '图片不存在' });
-          continue;
+          return { failed: true, reason: '图片不存在' };
         }
 
         // 检查文件是否存在
         const exists = await storage.exists(fullImage.file_path);
         if (!exists) {
-          failed++;
-          sendProgress({ type: 'skip', imageId: image.id, reason: '文件不存在' });
-          continue;
+          return { failed: true, reason: '文件不存在' };
         }
 
         // 构建向量化文本
@@ -317,24 +321,68 @@ router.post('/rebuild-all-vectors', authenticateToken, requireAdmin, async (req,
         // 保存向量
         await addImageVector(image.id, embedding, fullImage.uploaded_by);
 
-        success++;
+        return { success: true };
       } catch (error) {
-        failed++;
-        sendProgress({ type: 'error', imageId: image.id, error: error.message });
+        return { failed: true, error: error.message };
       }
-
-      // 短暂延迟，避免过载
-      await new Promise(resolve => setTimeout(resolve, 100));
     }
 
+    // 使用并发处理所有图片
+    const promises = images.map((image) =>
+      limiter.run(async () => {
+        // 检查是否被停止
+        if (rebuildTask.stopped) {
+          return { stopped: true };
+        }
+
+        const result = await processImage(image);
+
+        // 更新进度
+        processed++;
+        rebuildTask.current = processed;
+        rebuildTask.progress = Math.round((processed / images.length) * 100);
+        rebuildTask.message = `处理中 ${processed}/${images.length}`;
+
+        sendProgress({
+          type: 'progress',
+          current: processed,
+          total: images.length,
+          progress: rebuildTask.progress,
+          imageId: image.id
+        });
+
+        if (result.stopped) {
+          sendProgress({ type: 'skip', imageId: image.id, reason: '任务已停止' });
+        } else if (result.success) {
+          success++;
+        } else if (result.failed) {
+          failed++;
+          sendProgress({ type: 'error', imageId: image.id, error: result.reason || result.error });
+        }
+
+        return result;
+      })
+    );
+
+    // 等待所有任务完成
+    await Promise.all(promises);
+
     rebuildTask.running = false;
-    sendProgress({
-      type: 'done',
-      message: `重建完成，成功 ${success}，失败 ${failed}`,
-      success,
-      failed,
-      total: images.length
-    });
+
+    if (rebuildTask.stopped) {
+      sendProgress({
+        type: 'stopped',
+        message: `任务已停止，已处理 ${processed}/${images.length}，成功 ${success}，失败 ${failed}`
+      });
+    } else {
+      sendProgress({
+        type: 'done',
+        message: `重建完成，成功 ${success}，失败 ${failed}`,
+        success,
+        failed,
+        total: images.length
+      });
+    }
 
     res.end();
   } catch (error) {
