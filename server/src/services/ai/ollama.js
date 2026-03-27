@@ -330,10 +330,11 @@ ${categoryList}
     const defaultResult = {
       positivePrompt: '',
       negativePrompt: '',
+      textContent: '',
+      layoutInfo: '',
       suggestions: {
         aspectRatio: '1:1',
-        style: '通用',
-        recommendedModel: 'SDXL / Midjourney'
+        style: '通用'
       }
     };
 
@@ -377,14 +378,29 @@ ${categoryList}
 - 分辨率要求
 - 特殊质感表现
 
+【文案内容】（非常重要）
+- 图片中是否有文字内容？如果有，请完整提取所有文字
+- 文字的语言类型（中文/英文/日文等）
+- 文字的语义表达（标题/口号/说明/装饰性文字等）
+- 如果没有文字，请说明"无文字内容"
+
+【布局版式】（非常重要）
+- 整体布局结构（上下结构/左右结构/中心辐射/网格布局/自由布局等）
+- 视觉重心位置
+- 元素的空间分布和层次关系
+- 留白区域和比例
+- 文字与图像的位置关系（如有文字）
+- 装饰元素的位置和作用
+
 请严格按照以下JSON格式返回（所有提示词必须使用中文，正向提示词要非常详细，包含上述多个维度的描述）：
 {
-  "positivePrompt": "详细的多维度正向提示词。示例：一位年轻女性，约20岁，亚洲面孔，精致的面部特征，水汪汪的大眼睛，淡棕色瞳孔，淡妆，微微笑着的表情，黑色长发，发梢微卷，随风轻扬，身穿米白色针织毛衣，宽松版型，柔软质地，配戴细银项链，站在秋天的银杏大道上，金黄色的银杏叶铺满地面，阳光透过树叶洒下斑驳光影，温暖的午后光线，柔光效果，丁达尔效应，景深虚化背景，居中构图，半身特写，写实摄影风格，高画质，8K分辨率，细节丰富，电影级光影，温馨治愈的氛围",
+  "positivePrompt": "详细的多维度正向提示词，必须包含主体、构图、光影、色彩、风格、画质等维度的描述。示例：一位年轻女性，约20岁，亚洲面孔，精致的面部特征，水汪汪的大眼睛，淡棕色瞳孔，淡妆，微微笑着的表情，黑色长发，发梢微卷，随风轻扬，身穿米白色针织毛衣，宽松版型，柔软质地，配戴细银项链，站在秋天的银杏大道上，金黄色的银杏叶铺满地面，阳光透过树叶洒下斑驳光影，温暖的午后光线，柔光效果，丁达尔效应，景深虚化背景，居中构图，半身特写，写实摄影风格，高画质，8K分辨率，细节丰富，电影级光影，温馨治愈的氛围",
   "negativePrompt": "反向提示词，描述你不希望出现的元素。示例：模糊，低质量，扭曲，变形，多余的手指，肢体畸形，文字，水印，低分辨率，噪点，过曝，欠曝",
+  "textContent": "图片中的所有文字内容，按从上到下、从左到右的顺序列出。如果没有文字则填'无'。示例：主标题'春日物语'，副标题'春暖花开'，底部说明文字'2024春季新品上市'",
+  "layoutInfo": "详细的布局版式描述。示例：采用上下分区布局，上部2/3为主视觉区域，展示产品主体居中放置；下部1/3为信息区域，包含品牌logo左对齐、产品名称居中、促销信息右对齐。整体视觉重心在中上部，四周留有适当留白，营造高端简约的视觉感受",
   "suggestions": {
     "aspectRatio": "推荐的画幅比例",
-    "style": "推荐的风格类型",
-    "recommendedModel": "推荐的AI模型"
+    "style": "推荐的风格类型"
   }
 }`;
 
@@ -406,10 +422,11 @@ ${categoryList}
           return {
             positivePrompt: result.positivePrompt || defaultResult.positivePrompt,
             negativePrompt: result.negativePrompt || defaultResult.negativePrompt,
+            textContent: result.textContent || '无',
+            layoutInfo: result.layoutInfo || '',
             suggestions: {
               aspectRatio: result.suggestions?.aspectRatio || defaultResult.suggestions.aspectRatio,
-              style: result.suggestions?.style || defaultResult.suggestions.style,
-              recommendedModel: result.suggestions?.recommendedModel || defaultResult.suggestions.recommendedModel
+              style: result.suggestions?.style || defaultResult.suggestions.style
             }
           };
         } catch (e) {

@@ -138,6 +138,24 @@
             <div class="section-body">{{ promptResult.negativePrompt }}</div>
           </div>
 
+          <!-- 文案内容 -->
+          <div class="prompt-section text-content" v-if="promptResult.textContent && promptResult.textContent !== '无'">
+            <div class="section-header">
+              <span class="section-icon">📝</span>
+              <span class="section-title">文案内容</span>
+            </div>
+            <div class="section-body">{{ promptResult.textContent }}</div>
+          </div>
+
+          <!-- 布局版式 -->
+          <div class="prompt-section layout" v-if="promptResult.layoutInfo">
+            <div class="section-header">
+              <span class="section-icon">📐</span>
+              <span class="section-title">布局版式</span>
+            </div>
+            <div class="section-body">{{ promptResult.layoutInfo }}</div>
+          </div>
+
           <!-- 参数建议 -->
           <div class="prompt-section suggestions">
             <div class="section-header">
@@ -349,9 +367,18 @@ async function handleGeneratePrompt() {
 // 生成完整的提示词文本
 const fullPromptText = computed(() => {
   if (!promptResult.value) return ''
-  const { positivePrompt, negativePrompt, suggestions } = promptResult.value
+  const { positivePrompt, negativePrompt, textContent, layoutInfo, suggestions } = promptResult.value
   let text = `【正向提示词】\n${positivePrompt}\n\n`
   text += `【反向提示词】\n${negativePrompt}\n\n`
+
+  if (textContent && textContent !== '无') {
+    text += `【文案内容】\n${textContent}\n\n`
+  }
+
+  if (layoutInfo) {
+    text += `【布局版式】\n${layoutInfo}\n\n`
+  }
+
   text += `【参数建议】\n`
   text += `画幅比例：${suggestions?.aspectRatio || '未指定'}\n`
   text += `风格类型：${suggestions?.style || '未指定'}`
@@ -627,6 +654,16 @@ async function copyAllPrompt() {
 .prompt-section.suggestions {
   background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
   border: 1px solid #bfdbfe;
+}
+
+.prompt-section.text-content {
+  background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);
+  border: 1px solid #fde047;
+}
+
+.prompt-section.layout {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border: 1px solid #86efac;
 }
 
 .section-header {
