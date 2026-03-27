@@ -21,6 +21,8 @@ const app = express();
 
 // 判断是否为生产模式
 const isProduction = process.env.NODE_ENV === 'production';
+// 路径前缀，通过 BASE_URL 环境变量配置，默认为空
+const BASE_URL = process.env.BASE_URL || '';
 
 // 中间件
 if (!isProduction) {
@@ -30,31 +32,45 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // API 路由
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/images', imageRoutes);
-app.use('/api/categories', categoryRoutes);
-app.use('/api/tags', tagRoutes);
-app.use('/api/search', searchRoutes);
-app.use('/api/trash', trashRoutes);
-app.use('/api/logs', logRoutes);
-app.use('/api/system', systemRoutes);
-app.use('/api/favorites', favoriteRoutes);
+app.use(`${BASE_URL}/api/auth`, authRoutes);
+app.use(`${BASE_URL}/api/users`, userRoutes);
+app.use(`${BASE_URL}/api/images`, imageRoutes);
+app.use(`${BASE_URL}/api/categories`, categoryRoutes);
+app.use(`${BASE_URL}/api/tags`, tagRoutes);
+app.use(`${BASE_URL}/api/search`, searchRoutes);
+app.use(`${BASE_URL}/api/trash`, trashRoutes);
+app.use(`${BASE_URL}/api/logs`, logRoutes);
+app.use(`${BASE_URL}/api/system`, systemRoutes);
+app.use(`${BASE_URL}/api/favorites`, favoriteRoutes);
 
 // 健康检查
-app.get('/api/health', (req, res) => {
+app.get(`${BASE_URL}/api/health`, (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // 生产模式：托管前端静态文件
 if (isProduction) {
   const publicPath = path.join(__dirname, '../public');
-  app.use(express.static(publicPath));
 
-  // SPA 路由：所有非 API 路由返回 index.html
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(publicPath, 'index.html'));
-  });
+  // 如果有 BASE_URL，需要先处理静态文件的路由
+  if (BASE_URL) {
+    app.use(BASE_URL, express.static(publicPath));
+
+    // SPA 路由：所有 BASE_URL 下的非 API 路由返回 index.html
+    app.get(`${BASE_URL}/*`, (req, res) => {
+      // 排除 API 路由
+      if (!req.path.startsWith(`${BASE_URL}/api`)) {
+        res.sendFile(path.join(publicPath, 'index.html'));
+      }
+    });
+  } else {
+    app.use(express.static(publicPath));
+
+    // SPA 路由：所有非 API 路由返回 index.html
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(publicPath, 'index.html'));
+    });
+  }
 }
 
 // 错误处理中间件
@@ -83,12 +99,15 @@ async function startServer() {
     // 静态文件服务（仅本地存储时需要）
     if (isLocalStorage()) {
       const storage = require('./services/storage').getStorage();
-      app.use('/uploads', express.static(storage.getUploadDir()));
+      app.use(`${BASE_URL}/uploads`, express.static(storage.getUploadDir()));
       console.log('本地文件服务已启动');
     }
 
     app.listen(PORT, HOST, () => {
       console.log(`服务器运行在 http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
+      if (BASE_URL) {
+        console.log(`路径前缀: ${BASE_URL}`);
+      }
       if (HOST === '0.0.0.0') {
         console.log('监听所有网络接口，局域网可通过本机IP访问');
       }

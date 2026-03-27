@@ -77,8 +77,13 @@ const routes = [
   }
 ]
 
+// 从环境变量获取基础路径，用于路由，示例：/bj-images
+const baseUrl = import.meta.env.VITE_BASE_URL || ''
+// createWebHistory 需要末尾有 /
+const routerBase = baseUrl ? `${baseUrl}/` : '/'
+
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(routerBase),
   routes
 })
 

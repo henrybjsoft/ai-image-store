@@ -2,8 +2,13 @@ import axios from 'axios'
 import { message } from 'ant-design-vue'
 import router from '@/router'
 
+// 从环境变量获取基础路径，默认为空，示例：/bj-images
+const baseUrl = import.meta.env.VITE_BASE_URL || ''
+// API 基础路径
+const apiBaseURL = baseUrl ? `${baseUrl}/api` : '/api'
+
 const request = axios.create({
-  baseURL: '/api',
+  baseURL: apiBaseURL,
   timeout: 60000
 })
 

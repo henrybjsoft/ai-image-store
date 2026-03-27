@@ -1,0 +1,66 @@
+# Nginx 配置示例
+# 将此配置添加到 nginx.conf 的 server 块中
+
+# 图片素材管理系统 - 访问路径 /bj-images
+location /bj-images {
+    # 后端服务器地址
+    proxy_pass http://127.0.0.1:3000;
+
+    # 代理头设置
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # WebSocket 支持（如果需要）
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+
+    # 文件上传大小限制
+    client_max_body_size 50M;
+}
+
+# ========================================
+# 完整配置示例
+# ========================================
+#
+# server {
+#     listen 80;
+#     server_name your-domain.com;
+#
+#     # 其他应用...
+#     location /app1 { ... }
+#     location /app2 { ... }
+#
+#     # 图片素材管理系统
+#     location /bj-images {
+#         proxy_pass http://127.0.0.1:3000;
+#         proxy_set_header Host $host;
+#         proxy_set_header X-Real-IP $remote_addr;
+#         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#         proxy_set_header X-Forwarded-Proto $scheme;
+#         proxy_http_version 1.1;
+#         proxy_set_header Upgrade $http_upgrade;
+#         proxy_set_header Connection "upgrade";
+#         client_max_body_size 50M;
+#     }
+# }
+
+# ========================================
+# 环境变量配置说明
+# ========================================
+#
+# 【后端】server/.env 或 server/.env.production
+# NODE_ENV=production
+# BASE_URL=/bj-images
+#
+# 【前端】client/.env.production
+# VITE_BASE_URL=/bj-images
+#
+# 注意：两边都不带末尾的 /
+#
+# 构建命令：
+# cd client && npm run build
+#
+# 访问地址：https://your-domain.com/bj-images/
