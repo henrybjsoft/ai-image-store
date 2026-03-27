@@ -34,4 +34,4 @@ Thumbs.db
 server/public/
 release/
 /*.zip
-.claude/settings.json
+.claude/
