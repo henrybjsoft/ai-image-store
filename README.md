@@ -96,24 +96,36 @@ CREATE DATABASE image_asset;
 
 ### 5. 启动服务
 
-开发模式：
+**开发模式**（前后端分别运行在不同端口）：
 
 ```bash
 npm run dev
 ```
 
-生产模式：
+- 前端：http://localhost:5173
+- 后端：http://localhost:3000
+
+**生产模式**（前后端合并运行在单一端口）：
 
 ```bash
+# 1. 构建前端
 npm run build
+
+# 2. 配置环境变量
+# 编辑 server/.env，设置：
+NODE_ENV=production
+
+# 3. 启动服务
 cd server && npm start
 ```
 
+> **重要**：生产环境下必须设置 `NODE_ENV=production`，后端才会托管前端静态文件，实现单一端口访问。
+
 ### 6. 访问系统
 
-- 开发环境：http://localhost:5173
-- 生产环境：http://localhost:3000
 - 默认账号：admin / admin123
+- 开发环境：http://localhost:5173（前端） + http://localhost:3000（后端 API）
+- 生产环境：http://localhost:3000（单一端口，前后端合并）
 
 ## 配置说明
 
@@ -121,6 +133,7 @@ cd server && npm start
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
+| NODE_ENV | 运行环境，生产环境必须设为 production | development |
 | HOST | 监听地址 | 0.0.0.0 |
 | PORT | 服务端口 | 3000 |
 | TZ | 时区 | Asia/Shanghai |
