@@ -12,6 +12,16 @@
 - **用户权限管理**：支持多用户、角色权限、上传配额、有效期控制
 - **生成绘图提示词**：分析图片生成可用于 Stable Diffusion、Midjourney 的中文提示词
 
+## 界面截图
+
+![登录页面](https://github.com/henrybjsoft/ai-image-store/blob/main/screenshots/17746000515269.png?raw=true)
+
+![图片库](https://github.com/henrybjsoft/ai-image-store/blob/main/screenshots/17746000772641.png?raw=true)
+
+![语义搜索](https://github.com/henrybjsoft/ai-image-store/blob/main/screenshots/17746001083941.png?raw=true)
+
+![图片详情](https://github.com/henrybjsoft/ai-image-store/blob/main/screenshots/17746001464094.png?raw=true)
+
 ## 技术栈
 
 | 层面 | 技术 |
