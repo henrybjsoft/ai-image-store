@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import router from '@/router'
 
 // 从环境变量获取基础路径，默认为空，示例：/bj-images
@@ -11,6 +11,9 @@ const request = axios.create({
   baseURL: apiBaseURL,
   timeout: 60000
 })
+
+// 防止重复弹窗
+let isTokenExpiredModalShown = false
 
 // 请求拦截器
 request.interceptors.request.use(
@@ -35,10 +38,24 @@ request.interceptors.response.use(
     if (error.response) {
       switch (error.response.status) {
         case 401:
-          localStorage.removeItem('token')
-          localStorage.removeItem('user')
-          message.error('登录已过期，请重新登录')
-          router.push('/login')
+          if (!isTokenExpiredModalShown) {
+            isTokenExpiredModalShown = true
+            localStorage.removeItem('token')
+            localStorage.removeItem('user')
+            Modal.confirm({
+              title: '登录凭据已过期',
+              content: '您的登录状态已失效，请重新登录',
+              okText: '重新登录',
+              cancelText: '取消',
+              onOk: () => {
+                router.push('/login')
+                isTokenExpiredModalShown = false
+              },
+              onCancel: () => {
+                isTokenExpiredModalShown = false
+              }
+            })
+          }
           break
         case 403:
           message.error('没有权限执行此操作')
